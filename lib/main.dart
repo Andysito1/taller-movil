@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:xtreme_performance/screens/ajustes_page.dart';
+import 'package:xtreme_performance/screens/diagnostico_page.dart';
 import 'package:xtreme_performance/screens/estado_financiero.dart';
+import 'package:xtreme_performance/screens/finalizacion_page.dart';
 import 'package:xtreme_performance/screens/historial_vehiculo.dart';
 import 'package:xtreme_performance/screens/login_page.dart';
 import 'package:xtreme_performance/screens/my_home_page.dart';
+import 'package:xtreme_performance/screens/pruebas_page.dart';
+import 'package:xtreme_performance/screens/reparacion_page.dart';
 import 'package:xtreme_performance/screens/seguimiento_page.dart';
 
 void main() {
@@ -17,7 +21,7 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/',
       builder: (BuildContext context, GoRouterState state) {
-        return const MyHomePage(title: "Xtreme Performance",);
+        return const MyHomePage(title: "Xtreme Performance");
       },
       routes: <RouteBase>[
         GoRoute(
@@ -52,6 +56,34 @@ final GoRouter _router = GoRouter(
           path: 'ajustes',
           builder: (BuildContext context, GoRouterState state) {
             return const AjustesPage();
+          },
+        ),
+
+        GoRoute(
+          path: 'diagnostico',
+          builder: (BuildContext context, GoRouterState state) {
+            return const DiagnosticoPage();
+          },
+        ),
+
+        GoRoute(
+          path: 'reparacion',
+          builder: (BuildContext context, GoRouterState state) {
+            return const ReparacionPage();
+          },
+        ),
+
+        GoRoute(
+          path: 'pruebas',
+          builder: (BuildContext context, GoRouterState state) {
+            return const PruebasPage();
+          },
+        ),
+
+        GoRoute(
+          path: 'final',
+          builder: (BuildContext context, GoRouterState state) {
+            return const FinalPage();
           },
         ),
       ],

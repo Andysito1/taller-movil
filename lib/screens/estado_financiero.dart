@@ -19,34 +19,34 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
           mainAxisAlignment: .center,
           children: [
             const Text('Estado financiero'),
-            
+
             ElevatedButton(
               onPressed: () {
                 context.go("/seguimiento");
-                },
-                child: const Text("Seguimiento del vehículo"),
+              },
+              child: const Text("Seguimiento del vehículo"),
             ),
 
             ElevatedButton(
               onPressed: () {
                 context.go("/estadoFinanciero");
-                },
-                child: const Text("Estado financiero"),
+              },
+              child: const Text("Estado financiero"),
             ),
 
             ElevatedButton(
               onPressed: () {
                 context.go("/historial");
-                },
-                child: const Text("Historial del vehículo"),
+              },
+              child: const Text("Historial del vehículo"),
             ),
 
             ElevatedButton(
               onPressed: () {
                 context.go("/ajustes");
-                },
-                child: const Text("Ajustes"),
-            )
+              },
+              child: const Text("Ajustes"),
+            ),
           ],
         ),
       ),
