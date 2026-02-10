@@ -11,6 +11,24 @@ class SeguimientoPage extends StatefulWidget {
 }
 
 class _SeguimientoPageState extends State<SeguimientoPage> {
+  // ===== VEHÍCULOS MOCK (LUEGO VIENEN DEL API CON DIO) =====
+  final List<Map<String, String>> _vehiculos = [
+    {
+      "marca": "Toyota Corolla",
+      "anio": "2018",
+      "placa": "ABC-1234",
+      "imagen": "URL_IMAGEN_VEHICULO_AQUI", // 👈 AQUÍ VA EL LINK DE LA IMAGEN
+    },
+    {
+      "marca": "Hyundai Tucson",
+      "anio": "2020",
+      "placa": "XYZ-456",
+      "imagen": "URL_IMAGEN_VEHICULO_AQUI", // 👈 AQUÍ VA EL LINK DE LA IMAGEN
+    },
+  ];
+
+  int _vehiculoSeleccionado = 0;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -91,13 +109,19 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
               _drawerItem(
                 context,
                 icon: Icons.settings,
+                text: "Notificaciones",
+                route: "/notificaciones",
+              ),
+              _drawerItem(
+                context,
+                icon: Icons.settings,
                 text: "Ajustes",
                 route: "/ajustes",
               ),
 
               const Spacer(),
 
-              // VEHÍCULO
+              // VEHÍCULO (drawer)
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Container(
@@ -111,8 +135,7 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.network(
-                          "imagen del vehículo",
-                          // imagen del vehiculo
+                          "URL_IMAGEN_VEHICULO_AQUI", // 👈 AQUÍ VA EL LINK DE LA IMAGEN
                           width: 50,
                           height: 50,
                           fit: BoxFit.cover,
@@ -162,8 +185,66 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: .start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ===== SELECTOR DE VEHÍCULO (AGREGADO) =====
+            GestureDetector(
+              onTap: () => _mostrarSelectorVehiculo(context),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D1B3E),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.red, width: 1.5),
+                ),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        _vehiculos[_vehiculoSeleccionado]["imagen"]!,
+                        // 👈 AQUÍ VA EL LINK DE LA IMAGEN DEL VEHÍCULO
+                        width: 55,
+                        height: 55,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 55,
+                          height: 55,
+                          color: Colors.white24,
+                          child: const Icon(
+                            Icons.directions_car,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "${_vehiculos[_vehiculoSeleccionado]["marca"]} ${_vehiculos[_vehiculoSeleccionado]["anio"]}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            "Placa: ${_vehiculos[_vehiculoSeleccionado]["placa"]}",
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down, color: Colors.red),
+                  ],
+                ),
+              ),
+            ),
+
+            // ===== TU CÓDIGO ORIGINAL CONTINÚA =====
             const Text(
               "Seguimiento del Servicio",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -237,9 +318,89 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
       ),
     );
   }
+
+  // ===== BOTTOM SHEET SELECTOR DE VEHÍCULO =====
+  void _mostrarSelectorVehiculo(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: ListView.builder(
+            itemCount: _vehiculos.length,
+            itemBuilder: (_, i) {
+              final v = _vehiculos[i];
+              final seleccionado = i == _vehiculoSeleccionado;
+
+              return InkWell(
+                onTap: () {
+                  setState(() => _vehiculoSeleccionado = i);
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: seleccionado ? Colors.red : Colors.grey.shade300,
+                      width: 2,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          v["imagen"]!,
+                          // 👈 AQUÍ VA EL LINK DE LA IMAGEN DEL VEHÍCULO
+                          width: 50,
+                          height: 50,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 50,
+                            height: 50,
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.directions_car),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "${v["marca"]} ${v["anio"]}",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              "Placa: ${v["placa"]}",
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (seleccionado)
+                        const Icon(Icons.check_circle, color: Colors.red),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
 }
 
-// drawer
+// ===== drawer item =====
 Widget _drawerItem(
   BuildContext context, {
   required IconData icon,
@@ -266,7 +427,7 @@ Widget _drawerItem(
   );
 }
 
-// etapa del servicio
+// ===== etapa del servicio =====
 Widget _etapaServicio(
   BuildContext context, {
   required IconData icon,

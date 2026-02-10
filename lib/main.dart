@@ -7,6 +7,7 @@ import 'package:xtreme_performance/screens/finalizacion_page.dart';
 import 'package:xtreme_performance/screens/historial_vehiculo.dart';
 import 'package:xtreme_performance/screens/login_page.dart';
 import 'package:xtreme_performance/screens/my_home_page.dart';
+import 'package:xtreme_performance/screens/notificaciones_page.dart';
 import 'package:xtreme_performance/screens/pruebas_page.dart';
 import 'package:xtreme_performance/screens/reparacion_page.dart';
 import 'package:xtreme_performance/screens/seguimiento_page.dart';
@@ -49,6 +50,13 @@ final GoRouter _router = GoRouter(
           path: 'historial',
           builder: (BuildContext context, GoRouterState state) {
             return const HistorialPage();
+          },
+        ),
+
+        GoRoute(
+          path: 'notificaciones',
+          builder: (BuildContext context, GoRouterState state) {
+            return const NotificacionesPage();
           },
         ),
 

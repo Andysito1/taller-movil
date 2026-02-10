@@ -91,6 +91,12 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
               _drawerItem(
                 context,
                 icon: Icons.settings,
+                text: "Notificaciones",
+                route: "/notificaciones",
+              ),
+              _drawerItem(
+                context,
+                icon: Icons.settings,
                 text: "Ajustes",
                 route: "/ajustes",
               ),

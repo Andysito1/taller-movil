@@ -1,7 +1,4 @@
 // Ajustes
-
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -88,6 +85,12 @@ class _AjustesPageState extends State<AjustesPage> {
                 icon: Icons.history,
                 text: "Historial del vehículo",
                 route: "/historial",
+              ),
+              _drawerItem(
+                context,
+                icon: Icons.settings,
+                text: "Notificaciones",
+                route: "/notificaciones",
               ),
               _drawerItem(
                 context,
