@@ -29,14 +29,16 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
     _cargarUsuario();
     _notificationsService.init();
 
-    _notificationSubscription = _notificationsService.notificationsStream
-        .listen((allNotifications) {
-          if (allNotifications.isNotEmpty &&
-              (_notifications.isEmpty ||
-                  allNotifications.first.id != _notifications.first.id)) {
-            _addNotification(allNotifications.first);
-          }
-        });
+    _notificationSubscription =
+    _notificationsService.notificationsStream.listen((allNotifications) {
+
+      if (allNotifications.isEmpty) return;
+
+      final latestNotification = allNotifications.first;
+
+      _addNotification(latestNotification);
+
+    });
   }
 
   Future<void> _cargarUsuario() async {

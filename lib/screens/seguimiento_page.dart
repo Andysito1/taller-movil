@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:xtreme_performance/models/usuario_model.dart';
+import 'package:xtreme_performance/screens/chat_page.dart';
 import '../services/veh_service.dart';
 import '../models/veh_model.dart';
 import '../services/usuario_service.dart';
@@ -486,7 +487,14 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
       ),
       // 12. Botón flotante de chat
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ChatPage(title: 'ChatBot'),
+            ),
+          ); 
+        },
         backgroundColor: const Color(0xFFE53935),
         child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
       ),
