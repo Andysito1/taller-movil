@@ -6,7 +6,7 @@ class NotificationModel {
   final String title;
   final String description;
   final DateTime timestamp;
-  final bool isRead;
+  bool isRead; // Mutable para actualizar en UI
 
   NotificationModel({
     required this.id,
@@ -19,57 +19,52 @@ class NotificationModel {
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     return NotificationModel(
-      id: json['id'] ?? UniqueKey().toString(),
-      type: json['type'] ?? 'info',
-      title: json['title'] ?? 'Sin Título',
-      description: json['description'] ?? 'Sin Descripción',
-      timestamp: json['timestamp'] != null
-          ? DateTime.parse(json['timestamp'])
+      id: json['id']?.toString() ?? UniqueKey().toString(),
+      // Mapeo desde Laravel (tipo, titulo, mensaje, leido)
+      type: json['tipo'] ?? 'sistema',
+      title: json['titulo'] ?? 'Sin Título',
+      description: json['mensaje'] ?? 'Sin Descripción',
+      timestamp: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
           : DateTime.now(),
-      isRead: json['isRead'] as bool? ?? false,
+      isRead: (json['leido'] == 1 || json['leido'] == true),
     );
   }
 
   Color get iconBackgroundColor {
     switch (type) {
-      case 'success':
-        return Colors.green.shade50;
-      case 'alert':
-        return Colors.red.shade50;
-      case 'info':
+      case 'servicio':
         return Colors.blue.shade50;
-      case 'update':
-        return Colors.orange.shade50;
+      case 'finanzas':
+        return Colors.green.shade50;
+      case 'sistema':
+        return Colors.grey.shade200;
       default:
-        return Colors.grey.shade100;
+        return Colors.blue.shade50;
     }
   }
 
   Color get iconColor {
     switch (type) {
-      case 'success':
-        return Colors.green;
-      case 'alert':
-        return Colors.red;
-      case 'info':
-        return Colors.blue;
-      case 'update':
-        return Colors.orange;
+      case 'servicio':
+        return const Color(0xFF1F3C88);
+      case 'finanzas':
+        return Colors.green.shade700;
+      case 'sistema':
+        return Colors.grey.shade700;
       default:
-        return Colors.grey;
+        return const Color(0xFF1F3C88);
     }
   }
 
   IconData get iconData {
     switch (type) {
-      case 'success':
-        return Icons.check_circle_outline;
-      case 'alert':
-        return Icons.warning_amber_rounded;
-      case 'info':
+      case 'servicio':
+        return Icons.car_repair;
+      case 'finanzas':
+        return Icons.attach_money;
+      case 'sistema':
         return Icons.info_outline;
-      case 'update':
-        return Icons.system_update_alt_rounded;
       default:
         return Icons.notifications;
     }

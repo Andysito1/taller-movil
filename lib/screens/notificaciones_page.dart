@@ -14,61 +14,39 @@ class NotificacionesPage extends StatefulWidget {
 }
 
 class _NotificacionesPageState extends State<NotificacionesPage> {
+  // Instanciamos el servicio que actúa como Provider/Controller
   final NotificationsService _notificationsService = NotificationsService();
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
-  final List<NotificationModel> _notifications = [];
-  StreamSubscription? _notificationSubscription;
 
   final UsuarioService _usuarioService = UsuarioService();
   UsuarioModel? _usuario;
-  bool _cargandoUsuario = true;
 
   @override
   void initState() {
     super.initState();
     _cargarUsuario();
-    _notificationsService.init();
-
-    _notificationSubscription =
-    _notificationsService.notificationsStream.listen((allNotifications) {
-
-      if (allNotifications.isEmpty) return;
-
-      final latestNotification = allNotifications.first;
-
-      _addNotification(latestNotification);
-
-    });
   }
 
   Future<void> _cargarUsuario() async {
     try {
       final usuariosJson = await _usuarioService.usuarioInfo();
       if (usuariosJson.isNotEmpty && mounted) {
-        setState(() {
-          _usuario = UsuarioModel.fromJson(usuariosJson.first);
-          _cargandoUsuario = false;
-        });
+        // Asumimos que el backend devuelve un usuario con ID válido
+        setState(() => _usuario = UsuarioModel.fromJson(usuariosJson.first));
+
+        if (_usuario != null) {
+          // Usamos el ID numérico del usuario para el canal
+          final userId = int.tryParse(_usuario!.id.toString()) ?? 0;
+          _notificationsService.init(userId);
+        }
       }
     } catch (e) {
       print("Error al cargar el usuario: $e");
-      if (mounted) setState(() => _cargandoUsuario = false);
-    }
-  }
-
-  void _addNotification(NotificationModel notification) {
-    if (mounted) {
-      _notifications.insert(0, notification);
-      _listKey.currentState?.insertItem(
-        0,
-        duration: const Duration(milliseconds: 500),
-      );
     }
   }
 
   @override
   void dispose() {
-    _notificationSubscription?.cancel();
+    _notificationsService.dispose();
     super.dispose();
   }
 
@@ -135,20 +113,33 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
               ),
             ),
           ),
-          _notifications.isEmpty
-              ? const SliverFillRemaining(
-                  child: Center(
-                    child: Text(
-                      "No tienes notificaciones.",
-                      style: TextStyle(color: Colors.grey),
-                    ),
+          // Corrección: Usamos ListenableBuilder en lugar de SliverAnimatedList
+          ListenableBuilder(
+            listenable: _notificationsService,
+            builder: (context, child) {
+              if (_notificationsService.isLoading) {
+                return const SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              if (_notificationsService.notifications.isEmpty) {
+                return const SliverFillRemaining(
+                  child: Center(child: Text("No tienes notificaciones.")),
+                );
+              }
+
+              return SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => _buildNotificationCard(
+                    context,
+                    _notificationsService.notifications[index],
                   ),
-                )
-              : SliverAnimatedList(
-                  key: _listKey,
-                  initialItemCount: _notifications.length,
-                  itemBuilder: _buildNotificationCard,
+                  childCount: _notificationsService.notifications.length,
                 ),
+              );
+            },
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -161,87 +152,85 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
 
   Widget _buildNotificationCard(
     BuildContext context,
-    int index,
-    Animation<double> animation,
+    NotificationModel notification,
   ) {
-    final notification = _notifications[index];
-    return FadeTransition(
-      opacity: animation,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, -0.2),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+    return InkWell(
+      onTap: () {
+        if (!notification.isRead) {
+          _notificationsService.markAsRead(notification.id);
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: notification.isRead
+                ? Colors.white
+                : Colors.blue.shade50.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: notification.iconBackgroundColor,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ],
-            ),
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: notification.iconBackgroundColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    notification.iconData,
-                    color: notification.iconColor,
-                  ),
+                child: Icon(
+                  notification.iconData,
+                  color: notification.iconColor,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        notification.title,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        notification.description,
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _timeAgo(notification.timestamp),
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!notification.isRead)
-                  Container(
-                    width: 8,
-                    height: 8,
-                    margin: const EdgeInsets.only(left: 8, top: 4),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      notification.title,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      notification.description,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _timeAgo(notification.timestamp),
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!notification.isRead)
+                Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.only(left: 8, top: 4),
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
