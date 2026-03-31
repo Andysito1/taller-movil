@@ -1,15 +1,89 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import '../services/orden_service.dart';
 
 class DiagnosticoPage extends StatefulWidget {
-  const DiagnosticoPage({super.key});
+  final String? ordenId;
+  const DiagnosticoPage({super.key, this.ordenId});
 
   @override
   State<DiagnosticoPage> createState() => _DiagnosticoPageState();
 }
 
 class _DiagnosticoPageState extends State<DiagnosticoPage> {
+  final OrdenService _ordenService = OrdenService();
+
+  bool _isProcessing = false;
+  bool _isLoadingData = true;
+  // Estados: 'en_espera', 'aprobado', 'aclaracion'
+  String _validacionStatus = 'en_espera';
+  String _estadoGeneral = 'en_proceso';
+  String _descripcionDiagnostico = "Cargando descripción...";
+  String _fechaDiagnostico = "--/--/----";
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarInformacionOrden();
+  }
+
+  Future<void> _cargarInformacionOrden() async {
+    if (widget.ordenId == null || widget.ordenId == "0") {
+      setState(() => _isLoadingData = false);
+      return;
+    }
+
+    final data = await _ordenService.obtenerOrden(widget.ordenId!);
+    if (data != null && mounted) {
+      setState(() {
+        _validacionStatus = data['validacion_diagnostico'] ?? 'en_espera';
+        _estadoGeneral = data['estado'] ?? 'en_proceso';
+        _descripcionDiagnostico =
+            data['descripcion'] ?? 'Sin descripción disponible.';
+        _fechaDiagnostico = data['updated_at'] ?? '--/--/----';
+        _isLoadingData = false;
+      });
+    }
+  }
+
+  Future<void> _handleAction(
+    Future<bool> Function() action,
+    String successMsg, {
+    String? nextStatus,
+    String? nextGeneralStatus,
+  }) async {
+    if (widget.ordenId == null) return;
+
+    setState(() => _isProcessing = true);
+
+    final success = await action();
+
+    if (mounted) {
+      setState(() => _isProcessing = false);
+      if (success) {
+        if (nextStatus != null) setState(() => _validacionStatus = nextStatus);
+        if (nextGeneralStatus != null)
+          setState(() => _estadoGeneral = nextGeneralStatus);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(successMsg),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Error al procesar la solicitud. Intente de nuevo."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -38,29 +112,34 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
         ),
         leadingWidth: 56,
       ),
-      body: Stack(
-        children: [
-          // 1. Cabecera con Imagen
-          _buildHeaderImage(context),
+      body: _isLoadingData
+          ? const Center(child: CircularProgressIndicator())
+          : Stack(
+              children: [
+                // 1. Cabecera con Imagen
+                _buildHeaderImage(context),
 
-          // Contenido principal
-          ListView(
-            padding: const EdgeInsets.only(
-              top: 200,
-              left: 16,
-              right: 16,
-              bottom: 100,
+                // Contenido principal
+                ListView(
+                  padding: const EdgeInsets.only(
+                    top: 200,
+                    left: 16,
+                    right: 16,
+                    bottom: 100,
+                  ),
+                  children: [
+                    _buildInfoCard(),
+                    const SizedBox(height: 24),
+                    _buildNotesBox(),
+                    const SizedBox(height: 24),
+                    if (_validacionStatus == 'aprobado')
+                      _buildSuccessPanel()
+                    else
+                      _buildApprovalPanel(context),
+                  ],
+                ),
+              ],
             ),
-            children: [
-              _buildInfoCard(),
-              const SizedBox(height: 24),
-              _buildNotesBox(),
-              const SizedBox(height: 24),
-              _buildApprovalPanel(context),
-            ],
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {},
         backgroundColor: const Color(0xFFE53935),
@@ -125,22 +204,12 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "02/01/2026 - 09:30",
+                    _fechaDiagnostico,
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
                 ],
               ),
             ],
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            "Descripción",
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "Inspección inicial y diagnóstico completo del vehículo para identificar problemas.",
-            style: TextStyle(color: Colors.grey.shade700, height: 1.4),
           ),
           const SizedBox(height: 16),
           Row(
@@ -156,13 +225,17 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
+                  color: _estadoGeneral == 'pausado'
+                      ? Colors.orange.shade100
+                      : const Color(0xFFE8F5E9),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
-                  "Completado",
+                child: Text(
+                  _estadoGeneral == 'pausado' ? "Pausado" : "Completado",
                   style: TextStyle(
-                    color: Color(0xFF2E7D32),
+                    color: _estadoGeneral == 'pausado'
+                        ? Colors.orange.shade900
+                        : const Color(0xFF2E7D32),
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -170,9 +243,6 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
               ),
             ],
           ),
-          const Divider(height: 24),
-          _buildDetailRow("Técnico asignado:", "Carlos Méndez"),
-          _buildDetailRow("Tiempo estimado:", "2-3 horas"),
         ],
       ),
     );
@@ -207,8 +277,38 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            "Se ha detectado un problema en el sistema de frenos. Se recomienda el cambio de pastillas y discos.",
+            _descripcionDiagnostico,
             style: TextStyle(color: Colors.grey.shade800, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessPanel() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF81C784)),
+      ),
+      child: Column(
+        children: const [
+          Icon(Icons.check_circle, color: Color(0xFF2E7D32), size: 48),
+          SizedBox(height: 12),
+          Text(
+            "Diagnóstico Aprobado",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2E7D32),
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            "Vehículo en Reparación",
+            style: TextStyle(color: Color(0xFF2E7D32)),
           ),
         ],
       ),
@@ -236,7 +336,13 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
             label: "Aprobar avance",
             icon: Icons.check,
             color: Colors.green,
-            onPressed: () {},
+            onPressed: _isProcessing
+                ? null
+                : () => _handleAction(
+                    () => _ordenService.validarDiagnostico(widget.ordenId!),
+                    "¡Diagnóstico aprobado! Iniciando reparación.",
+                    nextStatus: 'aprobado',
+                  ),
           ),
           const SizedBox(height: 12),
           _buildActionButton(
@@ -244,15 +350,13 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
             label: "Solicitar aclaración",
             icon: Icons.error_outline,
             color: Colors.orange.shade800,
-            onPressed: () {},
-          ),
-          const SizedBox(height: 12),
-          _buildActionButton(
-            context: context,
-            label: "Rechazar o pausar servicio",
-            icon: Icons.close,
-            color: Colors.red,
-            onPressed: () {},
+            onPressed: _isProcessing
+                ? null
+                : () => _handleAction(
+                    () => _ordenService.solicitarAclaracion(widget.ordenId!),
+                    "Solicitud enviada. El técnico revisará tus dudas.",
+                    nextStatus: 'aclaracion',
+                  ),
           ),
           const SizedBox(height: 16),
           Text(
@@ -270,24 +374,28 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
     required String label,
     required IconData icon,
     required Color color,
-    required VoidCallback onPressed,
+    VoidCallback? onPressed,
   }) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, color: Colors.white),
-      label: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        minimumSize: const Size.fromHeight(48),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        elevation: 2,
-      ),
-    );
+    return _isProcessing
+        ? const Center(child: CircularProgressIndicator())
+        : ElevatedButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon, color: Colors.white),
+            label: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 2,
+            ),
+          );
   }
 }

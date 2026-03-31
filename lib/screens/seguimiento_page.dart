@@ -11,7 +11,8 @@ import '../services/seguimiento_service.dart';
 import '../models/etapa_model.dart';
 
 class SeguimientoPage extends StatefulWidget {
-  const SeguimientoPage({super.key});
+  final String? ordenId;
+  const SeguimientoPage({super.key, this.ordenId});
 
   @override
   State<SeguimientoPage> createState() => _SeguimientoPageState();
@@ -455,6 +456,9 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
 
                   return _etapaServicio(
                     context,
+                    // IMPORTANTE: Si validar-diagnostico usa el ID de la ORDEN,
+                    // asegúrate de que EtapaModel tenga ese campo o usa el ID correcto.
+                    id: etapa.id.toString(),
                     icon: icon,
                     color: color,
                     titulo: etapa.titulo,
@@ -485,19 +489,19 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
           ),
         ],
       ),
-      // 12. Botón flotante de chat
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ChatPage(title: 'ChatBot'),
-            ),
-          ); 
-        },
-        backgroundColor: const Color(0xFFE53935),
-        child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
-      ),
+      // // 12. Botón flotante de chat
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: () {
+      //     Navigator.push(
+      //       context,
+      //       MaterialPageRoute(
+      //         builder: (context) => const ChatPage(title: 'ChatBot'),
+      //       ),
+      //     );
+      //   },
+      //   backgroundColor: const Color(0xFFE53935),
+      //   child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+      // ),
     );
   }
 
@@ -661,6 +665,7 @@ Widget _drawerItem(
 // etapa del servicio
 Widget _etapaServicio(
   BuildContext context, {
+  required String id,
   required IconData icon,
   required Color color,
   required String titulo,
@@ -701,7 +706,7 @@ Widget _etapaServicio(
             );
           }
         : () {
-            context.go(ruta);
+            context.go(ruta, extra: id);
           },
     child: IntrinsicHeight(
       child: Row(

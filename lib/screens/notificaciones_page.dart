@@ -14,9 +14,8 @@ class NotificacionesPage extends StatefulWidget {
 }
 
 class _NotificacionesPageState extends State<NotificacionesPage> {
-  // Instanciamos el servicio que actúa como Provider/Controller
-  final NotificationsService _notificationsService = NotificationsService();
-
+  // Acceso al Singleton correcto
+  final NotificationService _notificationService = NotificationService();
   final UsuarioService _usuarioService = UsuarioService();
   UsuarioModel? _usuario;
 
@@ -30,24 +29,13 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
     try {
       final usuariosJson = await _usuarioService.usuarioInfo();
       if (usuariosJson.isNotEmpty && mounted) {
-        // Asumimos que el backend devuelve un usuario con ID válido
         setState(() => _usuario = UsuarioModel.fromJson(usuariosJson.first));
-
-        if (_usuario != null) {
-          // Usamos el ID numérico del usuario para el canal
-          final userId = int.tryParse(_usuario!.id.toString()) ?? 0;
-          _notificationsService.init(userId);
-        }
+        // Cargamos las notificaciones del historial
+        _notificationService.fetchNotifications();
       }
     } catch (e) {
       print("Error al cargar el usuario: $e");
     }
-  }
-
-  @override
-  void dispose() {
-    _notificationsService.dispose();
-    super.dispose();
   }
 
   String _timeAgo(DateTime date) {
@@ -115,15 +103,38 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
           ),
           // Corrección: Usamos ListenableBuilder en lugar de SliverAnimatedList
           ListenableBuilder(
-            listenable: _notificationsService,
+            listenable: _notificationService,
             builder: (context, child) {
-              if (_notificationsService.isLoading) {
+              if (_notificationService.isLoading) {
                 return const SliverFillRemaining(
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
 
-              if (_notificationsService.notifications.isEmpty) {
+              if (_notificationService.hasError) {
+                return SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red,
+                        ),
+                        const Text("No se pudieron cargar las notificaciones."),
+                        TextButton(
+                          onPressed: () =>
+                              _notificationService.fetchNotifications(),
+                          child: const Text("Reintentar"),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              if (_notificationService.notifications.isEmpty) {
                 return const SliverFillRemaining(
                   child: Center(child: Text("No tienes notificaciones.")),
                 );
@@ -133,9 +144,9 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
                 delegate: SliverChildBuilderDelegate(
                   (context, index) => _buildNotificationCard(
                     context,
-                    _notificationsService.notifications[index],
+                    _notificationService.notifications[index],
                   ),
-                  childCount: _notificationsService.notifications.length,
+                  childCount: _notificationService.notifications.length,
                 ),
               );
             },
@@ -157,7 +168,7 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
     return InkWell(
       onTap: () {
         if (!notification.isRead) {
-          _notificationsService.markAsRead(notification.id);
+          _notificationService.markAsRead(notification.id);
         }
       },
       child: Padding(
@@ -203,7 +214,7 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      notification.description,
+                      notification.mensaje,
                       style: TextStyle(
                         color: Colors.grey.shade600,
                         fontSize: 13,

@@ -6,6 +6,7 @@ import '../services/ajustes_service.dart';
 import '../services/usuario_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/dio_client.dart';
+import '../services/notifications_service.dart';
 
 class AjustesPage extends StatefulWidget {
   const AjustesPage({super.key});
@@ -125,6 +126,9 @@ class _AjustesPageState extends State<AjustesPage> {
   }
 
   Future<void> _cerrarSesion() async {
+    // 1. Informar al backend que este token ya no es válido para este usuario
+    await NotificationService().deleteToken();
+
     // Eliminar el token de la instancia global de Dio para limpiar la sesión en memoria
     DioClient.dio.options.headers.remove('Authorization');
 

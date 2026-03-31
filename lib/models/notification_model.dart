@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 class NotificationModel {
-  final String id;
+  final int id;
   final String type;
   final String title;
-  final String description;
+  final String mensaje;
   final DateTime timestamp;
   bool isRead; // Mutable para actualizar en UI
 
@@ -12,22 +12,23 @@ class NotificationModel {
     required this.id,
     required this.type,
     required this.title,
-    required this.description,
+    required this.mensaje,
     required this.timestamp,
     this.isRead = false,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     return NotificationModel(
-      id: json['id']?.toString() ?? UniqueKey().toString(),
+      id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
       // Mapeo desde Laravel (tipo, titulo, mensaje, leido)
       type: json['tipo'] ?? 'sistema',
       title: json['titulo'] ?? 'Sin Título',
-      description: json['mensaje'] ?? 'Sin Descripción',
+      mensaje: json['mensaje'] ?? 'Sin Descripción',
       timestamp: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
-      isRead: (json['leido'] == 1 || json['leido'] == true),
+      isRead:
+          json['leido'] == 1 || json['leido'] == true || json['leido'] == '1',
     );
   }
 

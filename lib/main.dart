@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:xtreme_performance/firebase_options.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:go_router/go_router.dart';
 import 'package:xtreme_performance/screens/ajustes_page.dart';
 import 'package:xtreme_performance/screens/diagnostico_page.dart';
@@ -13,9 +16,21 @@ import 'package:xtreme_performance/screens/reparacion_page.dart';
 import 'package:xtreme_performance/screens/seguimiento_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/dio_client.dart';
+import 'services/notifications_service.dart';
+
+/// Manejador de mensajes en segundo plano. Debe ser una función global.
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint("Handling background message: ${message.messageId}");
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializar Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   // 🔹 Inicializamos el token en los headers si existe
   final prefs = await SharedPreferences.getInstance();
@@ -28,7 +43,7 @@ void main() async {
 }
 
 // Configuracion
-final GoRouter _router = GoRouter(
+final GoRouter appRouter = GoRouter(
   routes: <RouteBase>[
     GoRoute(
       path: '/',
@@ -46,7 +61,8 @@ final GoRouter _router = GoRouter(
         GoRoute(
           path: 'seguimiento',
           builder: (BuildContext context, GoRouterState state) {
-            return const SeguimientoPage();
+            final ordenId = state.extra as String?;
+            return SeguimientoPage(ordenId: ordenId);
           },
         ),
 
@@ -81,7 +97,8 @@ final GoRouter _router = GoRouter(
         GoRoute(
           path: 'diagnostico',
           builder: (BuildContext context, GoRouterState state) {
-            return const DiagnosticoPage();
+            final ordenId = state.extra as String?;
+            return DiagnosticoPage(ordenId: ordenId);
           },
         ),
 
@@ -110,13 +127,27 @@ final GoRouter _router = GoRouter(
   ],
 );
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Inicializar el servicio de notificaciones después de que el primer frame sea dibujado
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService().initialize(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      routerConfig: _router,
+      routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
     );
   }
