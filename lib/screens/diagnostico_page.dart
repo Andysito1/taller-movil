@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../services/orden_service.dart';
 
 class DiagnosticoPage extends StatefulWidget {
@@ -38,10 +39,37 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
     if (data != null && mounted) {
       setState(() {
         _validacionStatus = data['validacion_diagnostico'] ?? 'en_espera';
-        _estadoGeneral = data['estado'] ?? 'en_proceso';
+
+        // Buscar el estado específico de la etapa de diagnóstico
+        final List<dynamic>? etapas = data['etapas'];
+        final diagnosticoEtapa = etapas?.firstWhere(
+          (e) => e['etapa'] == 'diagnostico',
+          orElse: () => null,
+        );
+
+        _estadoGeneral = diagnosticoEtapa != null
+            ? diagnosticoEtapa['estado']
+            : (data['estado'] ?? 'en_proceso');
+
         _descripcionDiagnostico =
             data['descripcion'] ?? 'Sin descripción disponible.';
-        _fechaDiagnostico = data['updated_at'] ?? '--/--/----';
+
+        // Formatear la fecha recibida del backend
+        final rawDate = data['updated_at'];
+        if (rawDate != null) {
+          try {
+            final parsedDate = DateTime.parse(rawDate);
+            _fechaDiagnostico = DateFormat(
+              'yyyy-MM-dd HH:mm',
+            ).format(parsedDate);
+          } catch (e) {
+            _fechaDiagnostico = rawDate.toString();
+          }
+        }
+
+        print(
+          "DEBUG: Estado cargado: $_validacionStatus para Orden: ${widget.ordenId}",
+        );
         _isLoadingData = false;
       });
     }
@@ -53,7 +81,7 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
     String? nextStatus,
     String? nextGeneralStatus,
   }) async {
-    if (widget.ordenId == null) return;
+    if (widget.ordenId == null || widget.ordenId == "0") return;
 
     setState(() => _isProcessing = true);
 
@@ -96,7 +124,8 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
         leading: Padding(
           padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
           child: GestureDetector(
-            onTap: () => context.go('/seguimiento'),
+            onTap: () => context
+                .pop(), // Cambiado a pop para no perder el estado de la navegación
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.4),
@@ -134,6 +163,16 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
                     const SizedBox(height: 24),
                     if (_validacionStatus == 'aprobado')
                       _buildSuccessPanel()
+                    else if (_validacionStatus == 'aclaracion')
+                      Column(
+                        children: [
+                          _buildAclaracionInfo(),
+                          const SizedBox(height: 16),
+                          _buildApprovalPanel(context),
+                        ],
+                      )
+                    else if (widget.ordenId == "0" || widget.ordenId == null)
+                      _buildErrorIdPanel()
                     else
                       _buildApprovalPanel(context),
                   ],
@@ -141,7 +180,9 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
               ],
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () {
+          context.push('/chat');
+        },
         backgroundColor: const Color(0xFFE53935),
         child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
       ),
@@ -149,15 +190,24 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
   }
 
   Widget _buildHeaderImage(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: MediaQuery.of(context).size.height * 0.28,
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: NetworkImage(
-            "https://images.unsplash.com/photo-1553787764-8134b2d94759?q=80&w=2070&auto=format&fit=crop",
-          ),
-          fit: BoxFit.cover,
-        ),
+      width: double.infinity,
+      child: Image.network(
+        "https://images.unsplash.com/photo-1486006391894-ca83b749666c?q=80&w=2072&auto=format&fit=crop",
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          // Si la imagen falla (404), mostramos un fondo sólido con un icono
+          return Container(
+            color: const Color(0xFF404040),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.assignment_outlined,
+              color: Colors.white,
+              size: 50,
+            ),
+          );
+        },
       ),
     );
   }
@@ -225,17 +275,13 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: _estadoGeneral == 'pausado'
-                      ? Colors.orange.shade100
-                      : const Color(0xFFE8F5E9),
+                  color: _getStatusBgColor(_estadoGeneral),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  _estadoGeneral == 'pausado' ? "Pausado" : "Completado",
+                  _getStatusLabel(_estadoGeneral),
                   style: TextStyle(
-                    color: _estadoGeneral == 'pausado'
-                        ? Colors.orange.shade900
-                        : const Color(0xFF2E7D32),
+                    color: _getStatusTextColor(_estadoGeneral),
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -246,6 +292,51 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
         ],
       ),
     );
+  }
+
+  String _getStatusLabel(String estado) {
+    switch (estado.toLowerCase()) {
+      case 'pausado':
+        return "Pausado";
+      case 'en_proceso':
+        return "En Proceso";
+      case 'completado':
+        return "Completado";
+      case 'finalizado':
+        return "Finalizado";
+      case 'pendiente':
+        return "Pendiente";
+      default:
+        return estado.replaceAll('_', ' ').toUpperCase();
+    }
+  }
+
+  Color _getStatusBgColor(String estado) {
+    switch (estado.toLowerCase()) {
+      case 'pausado':
+        return Colors.orange.shade100;
+      case 'en_proceso':
+        return Colors.blue.shade100;
+      case 'completado':
+      case 'finalizado':
+        return const Color(0xFFE8F5E9);
+      default:
+        return Colors.grey.shade200;
+    }
+  }
+
+  Color _getStatusTextColor(String estado) {
+    switch (estado.toLowerCase()) {
+      case 'pausado':
+        return Colors.orange.shade900;
+      case 'en_proceso':
+        return Colors.blue.shade900;
+      case 'completado':
+      case 'finalizado':
+        return const Color(0xFF2E7D32);
+      default:
+        return Colors.grey.shade700;
+    }
   }
 
   Widget _buildDetailRow(String label, String value) {
@@ -281,6 +372,44 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
             style: TextStyle(color: Colors.grey.shade800, height: 1.4),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAclaracionInfo() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, color: Colors.orange.shade900),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              "Ya has solicitado una aclaración. El técnico responderá pronto.",
+              style: TextStyle(color: Colors.orange.shade900, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorIdPanel() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Text(
+        "Error: No se pudo identificar la orden. Regrese e intente de nuevo.",
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.red),
       ),
     );
   }
@@ -336,12 +465,16 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
             label: "Aprobar avance",
             icon: Icons.check,
             color: Colors.green,
-            onPressed: _isProcessing
+            onPressed:
+                (_isProcessing ||
+                    widget.ordenId == "0" ||
+                    _validacionStatus == 'aprobado')
                 ? null
                 : () => _handleAction(
                     () => _ordenService.validarDiagnostico(widget.ordenId!),
                     "¡Diagnóstico aprobado! Iniciando reparación.",
                     nextStatus: 'aprobado',
+                    nextGeneralStatus: 'completado',
                   ),
           ),
           const SizedBox(height: 12),
@@ -350,7 +483,10 @@ class _DiagnosticoPageState extends State<DiagnosticoPage> {
             label: "Solicitar aclaración",
             icon: Icons.error_outline,
             color: Colors.orange.shade800,
-            onPressed: _isProcessing
+            onPressed:
+                (_isProcessing ||
+                    widget.ordenId == "0" ||
+                    _validacionStatus == 'aprobado')
                 ? null
                 : () => _handleAction(
                     () => _ordenService.solicitarAclaracion(widget.ordenId!),

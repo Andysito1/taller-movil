@@ -1,37 +1,32 @@
-import 'package:intl/intl.dart';
-
 class HistorialOrdenModel {
   final int id;
   final String titulo;
-  final String descripcion;
   final String? fechaFin;
   final double costoTotal;
+  final String estado;
 
   HistorialOrdenModel({
     required this.id,
     required this.titulo,
-    required this.descripcion,
     this.fechaFin,
     required this.costoTotal,
+    required this.estado,
   });
 
   factory HistorialOrdenModel.fromJson(Map<String, dynamic> json) {
-    // Formatear la fecha para que sea más legible
-    String? fechaFormateada;
-    if (json['fecha_fin'] != null) {
-      fechaFormateada = DateFormat(
-        'd \'de\' MMMM, y',
-        'es',
-      ).format(DateTime.parse(json['fecha_fin']));
-    }
-
     return HistorialOrdenModel(
-      id: json['id'],
-      titulo: json['titulo'] ?? 'Servicio sin título',
-      descripcion: json['descripcion'] ?? 'No hay descripción.',
-      fechaFin: fechaFormateada,
-      costoTotal:
-          double.tryParse(json['costo_total']?.toString() ?? '0.0') ?? 0.0,
+      id: json['id'] ?? 0,
+      // Solo tomamos 'titulo' o 'Titulo'. Si no existe, indicamos que no tiene título.
+      titulo: json['titulo'] ?? json['Titulo'] ?? 'Orden #${json['id']}',
+      // Mapeamos 'fecha_fin' (snake_case) a 'fechaFin'
+      fechaFin: json['fecha_fin'],
+      // Convertimos el string/decimal de la DB a double de forma segura
+      costoTotal: json['costo_total'] != null
+          ? double.tryParse(json['costo_total'].toString()) ?? 0.0
+          : (json['total'] != null
+                ? double.tryParse(json['total'].toString()) ?? 0.0
+                : 0.0),
+      estado: json['estado'] ?? '',
     );
   }
 }

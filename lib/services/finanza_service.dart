@@ -1,28 +1,45 @@
 import 'package:dio/dio.dart';
 import '../utils/dio_client.dart';
 import '../models/finanza_model.dart';
+import '../models/historial_orden_model.dart';
 
 class FinanzaService {
   Future<Map<String, dynamic>> obtenerFinanzasPorVehiculo(
-    int vehiculoId,
-  ) async {
+    int vehiculoId, {
+    int? ordenId,
+  }) async {
     try {
-      final response = await DioClient.dio.get('/finanzas/$vehiculoId');
+      await DioClient.setTokenHeader();
+      final String url = ordenId != null
+          ? '/finanzas/$vehiculoId?orden_id=$ordenId'
+          : '/finanzas/$vehiculoId';
+      final response = await DioClient.dio.get(url);
 
-      if (response.statusCode == 200) {
-        final List<dynamic> lista = response.data['finanzas'] ?? [];
-        final double total = double.parse(response.data['total'].toString());
+      print("DEBUG: Respuesta Finanzas Body: ${response.data}");
 
-        final finanzas = lista
-            .map((json) => FinanzaModel.fromJson(json))
+      if (response.statusCode == 200 && response.data != null) {
+        final List<dynamic> finanzasRaw = response.data['finanzas'] ?? [];
+        final List<dynamic> ordenesRaw = response.data['ordenes'] ?? [];
+
+        final List<FinanzaModel> finanzas = finanzasRaw
+            .map((f) => FinanzaModel.fromJson(f))
             .toList();
 
-        return {'finanzas': finanzas, 'total': total};
+        final List<HistorialOrdenModel> ordenes = ordenesRaw
+            .map((o) => HistorialOrdenModel.fromJson(o))
+            .toList();
+
+        return {
+          'finanzas': finanzas,
+          'total': double.tryParse(response.data['total'].toString()) ?? 0.0,
+          'ordenes': ordenes,
+          'orden_seleccionada': response.data['orden_seleccionada'],
+        };
       }
-      return {'finanzas': <FinanzaModel>[], 'total': 0.0};
+      return {'finanzas': [], 'total': 0.0, 'ordenes': []};
     } catch (e) {
-      print("Error al obtener finanzas: $e");
-      return {'finanzas': <FinanzaModel>[], 'total': 0.0};
+      print("Error en FinanzaService: $e");
+      return {'finanzas': [], 'total': 0.0, 'ordenes': []};
     }
   }
 }

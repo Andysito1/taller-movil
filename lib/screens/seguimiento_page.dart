@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:xtreme_performance/models/usuario_model.dart';
-import 'package:xtreme_performance/screens/chat_page.dart';
 import '../services/veh_service.dart';
 import '../models/veh_model.dart';
 import '../services/usuario_service.dart';
@@ -18,18 +17,40 @@ class SeguimientoPage extends StatefulWidget {
   State<SeguimientoPage> createState() => _SeguimientoPageState();
 }
 
-class _SeguimientoPageState extends State<SeguimientoPage> {
+class _SeguimientoPageState extends State<SeguimientoPage>
+    with WidgetsBindingObserver {
   List<VehiculoModel> _vehiculos = [];
   List<UsuarioModel> _usuarios = [];
   List<EtapaModel> _etapas = [];
+  String _tituloOrden = "Servicio Actual";
   int _vehiculoSeleccionado = 0;
   bool _cargando = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(
+      this,
+    ); // Añadir observador del ciclo de vida
     _cargarVehiculos();
     _usuarioInformacion();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // Remover observador
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // La aplicación ha vuelto a estar activa (ej. se regresó de otra pantalla)
+      // Recargar el seguimiento para asegurar que los datos estén actualizados
+      if (_vehiculos.isNotEmpty) {
+        _cargarSeguimiento(_vehiculos[_vehiculoSeleccionado].id);
+      }
+    }
   }
 
   Future<void> _cargarVehiculos() async {
@@ -59,11 +80,11 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
   Future<void> _cargarSeguimiento(int vehiculoId) async {
     // Opcional: poner loading local si se desea
     try {
-      final etapas = await SeguimientoService().obtenerSeguimientoPorVehiculo(
-        vehiculoId,
-      );
+      final resultado = await SeguimientoService()
+          .obtenerSeguimientoPorVehiculo(vehiculoId);
       setState(() {
-        _etapas = etapas;
+        _etapas = List<EtapaModel>.from(resultado['etapas']);
+        _tituloOrden = resultado['titulo'];
       });
     } catch (e) {
       setState(() {
@@ -93,46 +114,37 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_cargando) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    if (_vehiculos.isEmpty) {
-      return const Scaffold(
-        body: Center(child: Text("No tienes vehículos registrados")),
-      );
-    }
-
-    final usuario = _usuarios;
-
-    final vehiculo = _vehiculos[_vehiculoSeleccionado];
+    // Ya no bloqueamos todo el build.
+    final bool hayVehiculos = _vehiculos.isNotEmpty;
+    final vehiculo = hayVehiculos ? _vehiculos[_vehiculoSeleccionado] : null;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2E4A8F),
+        backgroundColor: const Color(0xFF404040),
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         title: const Text(
           "Xtreme Performance",
           style: TextStyle(
             color: Colors.white,
-            fontSize: 18,
+            fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.dark_mode_outlined, color: Colors.white),
-            onPressed: () {}, // Visual only
-          ),
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.dark_mode_outlined, color: Colors.white),
+        //     onPressed: () {}, // Visual only
+        //   ),
+        // ],
       ),
 
       // drawer
       drawer: Drawer(
         child: Container(
-          color: const Color(0xFF1F3C88),
+          color: const Color(0xFF404040),
           child: Column(
             children: [
               // header
@@ -213,53 +225,200 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
               const Spacer(),
 
               // VEHÍCULO seleccionado en drawer
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Container(
+              if (vehiculo != null)
+                Padding(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2C5BEA),
-                    borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color.fromARGB(255, 86, 86, 86),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: (vehiculo.fullImagenUrl.isNotEmpty)
+                              ? Image.network(
+                                  vehiculo.fullImagenUrl,
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      _buildCarPlaceholder(50),
+                                )
+                              : _buildCarPlaceholder(50),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.anio}",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Placa: ${vehiculo.placa}",
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          vehiculo.imagen ??
-                              "https://placehold.co/50x50.png?text=Auto",
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            width: 50,
-                            height: 50,
-                            color: Colors.white24,
-                            child: const Icon(
-                              Icons.directions_car,
-                              color: Colors.white,
+                ),
+            ],
+          ),
+        ),
+      ),
+
+      body: _cargando
+          ? const Center(child: CircularProgressIndicator())
+          : _vehiculos.isEmpty
+          ? const Center(child: Text("No tienes vehículos registrados"))
+          : ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                // 2. Tarjeta superior del vehículo (Selector estilizado)
+                if (vehiculo != null)
+                  GestureDetector(
+                    onTap: () => _mostrarSelectorVehiculo(context),
+                    child: Container(
+                      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF404040),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: (vehiculo.fullImagenUrl.isNotEmpty)
+                                ? Image.network(
+                                    vehiculo.fullImagenUrl,
+                                    width: 56,
+                                    height: 56,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _buildCarPlaceholder(56),
+                                  )
+                                : _buildCarPlaceholder(56),
+                          ),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.anio}",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Text(
+                                  "Placa: ${vehiculo.placa}",
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.8),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
+                          // Botón circular visual
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.keyboard_arrow_down,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
+                    ),
+                  ),
+
+                // 3. Header con imagen del vehículo
+                if (vehiculo != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 24),
+                    child: Stack(
+                      children: [
+                        Container(
+                          height: 220,
+                          width: double.infinity,
+                          child:
+                              (vehiculo.imagen != null &&
+                                  vehiculo.imagen!.isNotEmpty)
+                              ? Image.network(
+                                  vehiculo.imagen!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      _buildCarPlaceholder(220, isHeader: true),
+                                )
+                              : _buildCarPlaceholder(220, isHeader: true),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: _buildHeaderOverlay(vehiculo),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // 6. Título de sección
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            "${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.anio}",
-                            style: const TextStyle(
-                              color: Colors.white,
+                          const Text(
+                            "Seguimiento del Servicio",
+                            style: TextStyle(
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                              color: Color(0xFF333333),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            "Placa: ${vehiculo.placa}",
+                            _tituloOrden,
                             style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11,
+                              color: Color(0xFFE53935),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
@@ -267,241 +426,112 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
+                const SizedBox(height: 16),
 
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          // 2. Tarjeta superior del vehículo (Selector estilizado)
-          GestureDetector(
-            onTap: () => _mostrarSelectorVehiculo(context),
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2E4A8F),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      vehiculo.imagen ??
-                          "https://placehold.co/55x55.png?text=Auto",
-                      width: 56,
-                      height: 56,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 56,
-                        height: 56,
-                        color: Colors.white24,
-                        child: const Icon(
-                          Icons.directions_car,
-                          color: Colors.white,
-                        ),
+                if (_etapas.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Text(
+                        "No hay una orden de servicio activa para este vehículo.",
                       ),
                     ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red, width: 2),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Icon(
-                    Icons.directions_car,
-                    color: Colors.red,
-                    size: 20,
-                  ), // Icono auto rojo
-                  const SizedBox(width: 8),
-                  Expanded(
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.anio}",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          "Placa: ${vehiculo.placa}",
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Botón circular visual
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.keyboard_arrow_down,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+                      children: _etapas.map((etapa) {
+                        final color = _getColorForStatus(etapa.estado);
+                        final icon = _getIconForType(etapa.tipo);
+                        final ruta = _getRouteForType(etapa.tipo);
 
-          // 3. Header con imagen del vehículo
-          Container(
-            height: 220,
-            width: double.infinity,
-            margin: const EdgeInsets.only(top: 16, bottom: 24),
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                image: NetworkImage(
-                  vehiculo.imagen ??
-                      "https://placehold.co/400x220.png?text=Auto",
-                ),
-                fit: BoxFit.cover,
-              ),
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.45), // Overlay oscuro
-              ),
-              padding: const EdgeInsets.all(20),
-              alignment: Alignment.bottomLeft,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "${vehiculo.marca} ${vehiculo.modelo}",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                        return _etapaServicio(
+                          context,
+                          id: etapa.id
+                              .toString(), // Este ahora es id_orden gracias al modelo
+                          icon: icon,
+                          color: color,
+                          titulo: etapa.titulo,
+                          descripcion: etapa.descripcion,
+                          estado: etapa.estado,
+                          fecha: etapa.fecha ?? "Por iniciar",
+                          ruta: ruta,
+                        );
+                      }).toList(),
                     ),
                   ),
-                  Text(
-                    vehiculo.placa,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
 
-          // 6. Título de sección
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Seguimiento del Servicio",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                const SizedBox(height: 12),
+
+                // 11. Caja de nota informativa
+                Container(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF0F0), // Rosado muy claro
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFFCDD2)),
+                  ),
+                  child: const Text(
+                    "Nota: Puedes hacer clic en cada etapa para ver más detalles.",
+                    style: TextStyle(fontSize: 13, color: Color(0xFFD32F2F)),
                   ),
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  "Estado actual de tu vehículo",
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-                const SizedBox(height: 16),
               ],
             ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          context.push('/chat');
+        },
+        backgroundColor: const Color(0xFFE53935),
+        child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildCarPlaceholder(double size, {bool isHeader = false}) {
+    return Container(
+      width: isHeader ? double.infinity : size,
+      height: size,
+      decoration: const BoxDecoration(color: Color.fromARGB(255, 54, 54, 54)),
+      child: const Icon(Icons.directions_car, color: Colors.white, size: 30),
+    );
+  }
+
+  Widget _buildHeaderOverlay(VehiculoModel vehiculo) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.black.withOpacity(0), Colors.black.withOpacity(0.6)],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "${vehiculo.marca} ${vehiculo.modelo}",
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-
-          if (_etapas.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20.0),
-                child: Text(
-                  "No hay una orden de servicio activa para este vehículo.",
-                ),
-              ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: _etapas.map((etapa) {
-                  final color = _getColorForStatus(etapa.estado);
-                  final icon = _getIconForType(etapa.tipo);
-                  final ruta = _getRouteForType(etapa.tipo);
-
-                  return _etapaServicio(
-                    context,
-                    // IMPORTANTE: Si validar-diagnostico usa el ID de la ORDEN,
-                    // asegúrate de que EtapaModel tenga ese campo o usa el ID correcto.
-                    id: etapa.id.toString(),
-                    icon: icon,
-                    color: color,
-                    titulo: etapa.titulo,
-                    descripcion: etapa.descripcion,
-                    estado: etapa.estado,
-                    fecha: etapa.fecha ?? "Por iniciar",
-                    ruta: ruta,
-                  );
-                }).toList(),
-              ),
-            ),
-
-          const SizedBox(height: 12),
-
-          // 11. Caja de nota informativa
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF0F0), // Rosado muy claro
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFFFCDD2)),
-            ),
-            child: const Text(
-              "Nota: Puedes hacer clic en cada etapa para ver más detalles y aprobar el avance del servicio.",
-              style: TextStyle(fontSize: 13, color: Color(0xFFD32F2F)),
+          Text(
+            vehiculo.placa,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 16,
             ),
           ),
         ],
       ),
-      // // 12. Botón flotante de chat
-      // floatingActionButton: FloatingActionButton(
-      //   onPressed: () {
-      //     Navigator.push(
-      //       context,
-      //       MaterialPageRoute(
-      //         builder: (context) => const ChatPage(title: 'ChatBot'),
-      //       ),
-      //     );
-      //   },
-      //   backgroundColor: const Color(0xFFE53935),
-      //   child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
-      // ),
     );
   }
 
@@ -569,9 +599,7 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
                 onTap: () {
                   setState(() {
                     _vehiculoSeleccionado = i;
-                    _cargarSeguimiento(
-                      v.id,
-                    ); // Recargar datos al cambiar vehículo
+                    _cargarSeguimiento(v.id);
                   });
                   Navigator.pop(context);
                 },
@@ -589,19 +617,16 @@ class _SeguimientoPageState extends State<SeguimientoPage> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          v.imagen ??
-                              "https://placehold.co/50x50.png?text=Auto",
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            width: 50,
-                            height: 50,
-                            color: Colors.grey.shade200,
-                            child: const Icon(Icons.directions_car),
-                          ),
-                        ),
+                        child: (v.fullImagenUrl.isNotEmpty)
+                            ? Image.network(
+                                v.fullImagenUrl,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    _buildCarPlaceholder(50),
+                              )
+                            : _buildCarPlaceholder(50),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -649,7 +674,7 @@ Widget _drawerItem(
       context.go(route);
     },
     child: Container(
-      color: selected ? const Color(0xFF2C5BEA) : Colors.transparent,
+      color: selected ? Colors.white.withOpacity(0.1) : Colors.transparent,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
@@ -706,139 +731,148 @@ Widget _etapaServicio(
             );
           }
         : () {
-            context.go(ruta, extra: id);
+            context.push(
+              ruta,
+              extra: id,
+            ); // Usamos push para una transición más suave y rápida
           },
-    child: IntrinsicHeight(
+    child: Padding(
+      padding: const EdgeInsets.only(bottom: 0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 8. Icono circular y línea de tiempo
-          SizedBox(
-            width: 50,
-            child: Column(
-              children: [
-                // Línea superior (conector)
-                Expanded(
-                  child: Container(width: 2, color: Colors.grey.shade300),
-                ),
-                // Icono
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: isCompleted
-                        ? const Color(0xFFE8F5E9)
-                        : (isInProgress
-                              ? const Color(0xFFFFF9C4)
-                              : Colors.grey.shade100),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isCompleted ? Colors.green : Colors.transparent,
-                    ),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: isCompleted
-                        ? Colors.green
-                        : (isInProgress ? Colors.orange[800] : Colors.grey),
-                    size: 20,
-                  ),
-                ),
-                // Línea inferior (conector)
-                Expanded(
-                  child: Container(width: 2, color: Colors.grey.shade300),
-                ),
-              ],
-            ),
-          ),
+          _buildTimelineElement(isCompleted, isInProgress, icon),
           const SizedBox(width: 12),
           // 7. Tarjeta de progreso
           Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          titulo,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                            color: Color(0xFF333333),
-                          ),
-                        ),
-                      ),
-                      // 10. Badge de estado
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: badgeBgColor,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          estado,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: badgeTextColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    descripcion,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF757575),
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.access_time,
-                        size: 14,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        fecha,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+            child: _buildEtapaCard(
+              titulo,
+              estado,
+              badgeBgColor,
+              badgeTextColor,
+              descripcion,
+              fecha,
             ),
           ),
         ],
       ),
+    ),
+  );
+}
+
+Widget _buildTimelineElement(
+  bool isCompleted,
+  bool isInProgress,
+  IconData icon,
+) {
+  return SizedBox(
+    width: 50,
+    child: Column(
+      children: [
+        Container(width: 2, height: 20, color: Colors.grey.shade300),
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: isCompleted
+                ? const Color(0xFFE8F5E9)
+                : (isInProgress
+                      ? const Color(0xFFFFF9C4)
+                      : Colors.grey.shade100),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isCompleted ? Colors.green : Colors.transparent,
+            ),
+          ),
+          child: Icon(
+            icon,
+            color: isCompleted
+                ? Colors.green
+                : (isInProgress ? Colors.orange[800] : Colors.grey),
+            size: 20,
+          ),
+        ),
+        Container(width: 2, height: 60, color: Colors.grey.shade300),
+      ],
+    ),
+  );
+}
+
+Widget _buildEtapaCard(
+  String titulo,
+  String estado,
+  Color badgeBgColor,
+  Color badgeTextColor,
+  String descripcion,
+  String fecha,
+) {
+  return Container(
+    margin: const EdgeInsets.symmetric(vertical: 8),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                titulo,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  color: Color(0xFF333333),
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: badgeBgColor,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                estado,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: badgeTextColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          descripcion,
+          style: const TextStyle(fontSize: 13, color: Color(0xFF757575)),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Icon(Icons.access_time, size: 14, color: Colors.grey),
+            const SizedBox(width: 4),
+            Text(
+              fecha,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+      ],
     ),
   );
 }

@@ -8,6 +8,8 @@ import '../models/finanza_model.dart';
 import '../services/veh_service.dart';
 import '../services/usuario_service.dart';
 import '../services/finanza_service.dart';
+import '../models/historial_orden_model.dart';
+import '../services/historial_service.dart';
 
 class EstFinancieroPage extends StatefulWidget {
   const EstFinancieroPage({super.key});
@@ -20,7 +22,9 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
   List<VehiculoModel> _vehiculos = [];
   List<UsuarioModel> _usuarios = [];
   List<FinanzaModel> _finanzas = [];
+  List<HistorialOrdenModel> _ordenes = [];
   double _totalDeuda = 0.0;
+  int? _ordenSeleccionadaId;
   int _vehiculoSeleccionado = 0;
   bool _cargando = true;
 
@@ -44,7 +48,7 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
       setState(() {
         _vehiculos = vehiculosList;
         if (_vehiculos.isNotEmpty) {
-          _cargarFinanzas(_vehiculos[0].id);
+          _seleccionarVehiculo(0);
         } else {
           _cargando = false;
         }
@@ -66,35 +70,59 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
     }
   }
 
-  Future<void> _cargarFinanzas(int vehiculoId) async {
+  Future<void> _seleccionarVehiculo(int index) async {
+    final vehiculoId = _vehiculos[index].id;
+    setState(() {
+      _vehiculoSeleccionado = index;
+      _cargando = true;
+    });
+    await _cargarFinanzas(vehiculoId);
+  }
+
+  Future<void> _cargarFinanzas(int vehiculoId, {int? ordenId}) async {
+    if (mounted) setState(() => _cargando = true);
     try {
       final resultado = await FinanzaService().obtenerFinanzasPorVehiculo(
         vehiculoId,
+        ordenId: ordenId,
       );
-      setState(() {
-        _finanzas = resultado['finanzas'];
-        _totalDeuda = resultado['total'];
-        _cargando = false;
-      });
+      if (mounted) {
+        setState(() {
+          _finanzas = List<FinanzaModel>.from(resultado['finanzas']);
+          _ordenes = List<HistorialOrdenModel>.from(resultado['ordenes']);
+          _ordenSeleccionadaId = resultado['orden_seleccionada'];
+          _totalDeuda = (resultado['total'] as num).toDouble();
+          _cargando = false;
+        });
+      }
     } catch (e) {
-      setState(() => _cargando = false);
+      if (mounted) setState(() => _cargando = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_cargando)
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    // Permitimos que la estructura cargue primero
+    final bool hayVehiculos = _vehiculos.isNotEmpty;
+    final vehiculo = hayVehiculos ? _vehiculos[_vehiculoSeleccionado] : null;
 
-    final vehiculo = _vehiculos.isNotEmpty
-        ? _vehiculos[_vehiculoSeleccionado]
-        : null;
+    // Obtener el título de la orden seleccionada para mostrarlo en la tarjeta
+    final String tituloOrdenActual =
+        _ordenSeleccionadaId != null && _ordenes.isNotEmpty
+        ? _ordenes
+              .firstWhere(
+                (o) => o.id == _ordenSeleccionadaId,
+                orElse: () => _ordenes.first,
+              )
+              .titulo
+        : "Servicio Actual";
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2E4A8F),
+        backgroundColor: const Color(0xFF404040),
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         title: const Text(
           "Xtreme Performance",
@@ -104,18 +132,18 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.dark_mode_outlined, color: Colors.white),
-            onPressed: () {}, // Visual only
-          ),
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.dark_mode_outlined, color: Colors.white),
+        //     onPressed: () {}, // Visual only
+        //   ),
+        // ],
       ),
 
       // menú desplegable
       drawer: Drawer(
         child: Container(
-          color: const Color(0xFF1F3C88),
+          color: const Color(0xFF404040),
           child: Column(
             children: [
               // HEADER
@@ -202,29 +230,25 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2C5BEA),
+                      color: const Color(0xFF565656),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            vehiculo.imagen ??
-                                "https://placehold.co/50x50.png?text=Auto",
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 50,
-                              height: 50,
-                              color: Colors.white24,
-                              child: const Icon(
-                                Icons.directions_car,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
+                          child:
+                              (vehiculo.imagen != null &&
+                                  vehiculo.imagen!.isNotEmpty)
+                              ? Image.network(
+                                  vehiculo.imagen!,
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      _buildCarPlaceholder(50),
+                                )
+                              : _buildCarPlaceholder(50),
                         ),
                         const SizedBox(width: 12),
                         Column(
@@ -257,7 +281,9 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
         ),
       ),
 
-      body: vehiculo == null
+      body: _cargando
+          ? const Center(child: CircularProgressIndicator())
+          : vehiculo == null
           ? const Center(child: Text("No tienes vehículos registrados"))
           : ListView(
               padding: EdgeInsets.zero,
@@ -272,7 +298,7 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2E4A8F),
+                      color: const Color(0xFF404040),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
@@ -286,30 +312,20 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            vehiculo.imagen ??
-                                "https://placehold.co/55x55.png?text=Auto",
-                            width: 56,
-                            height: 56,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 56,
-                              height: 56,
-                              color: Colors.white24,
-                              child: const Icon(
-                                Icons.directions_car,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
+                          child:
+                              (vehiculo.imagen != null &&
+                                  vehiculo.imagen!.isNotEmpty)
+                              ? Image.network(
+                                  vehiculo.imagen!,
+                                  width: 56,
+                                  height: 56,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      _buildCarPlaceholder(56),
+                                )
+                              : _buildCarPlaceholder(56),
                         ),
-                        const SizedBox(width: 8),
-                        const Icon(
-                          Icons.directions_car,
-                          color: Colors.red,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 20),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,12 +381,20 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        "Detalle de costos para la orden actual",
+                        "Consulta el detalle de tus servicios",
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 16,
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      // MENÚ FLOTANTE SELECTIVO
+                      if (_ordenes.isNotEmpty) _buildSelectorOrdenes(),
+                      if (_ordenes.isEmpty && !_cargando)
+                        const Text(
+                          "No se encontraron órdenes para este vehículo",
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -382,15 +406,11 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1E3A8A), Color(0xFF2E4A8F)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    color: const Color(0xFF404040),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.blue.withOpacity(0.3),
+                        color: Colors.grey.withOpacity(0.3),
                         blurRadius: 10,
                         offset: const Offset(0, 5),
                       ),
@@ -399,9 +419,14 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "Total del Servicio Actual",
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      Text(
+                        "Total: $tituloOrdenActual",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -516,9 +541,86 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
               ],
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () {
+          context.push('/chat');
+        },
         backgroundColor: const Color(0xFFE53935),
         child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildSelectorOrdenes() {
+    final HistorialOrdenModel? ordenActual = _ordenes.isEmpty
+        ? null
+        : _ordenes.firstWhere(
+            (o) => o.id == _ordenSeleccionadaId,
+            orElse: () => _ordenes.first,
+          );
+
+    if (ordenActual == null) return const SizedBox.shrink();
+
+    return PopupMenuButton<int>(
+      tooltip: "Cambiar orden de servicio",
+      onSelected: (int id) {
+        _cargarFinanzas(_vehiculos[_vehiculoSeleccionado].id, ordenId: id);
+      },
+      offset: const Offset(0, 50),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      itemBuilder: (context) => _ordenes.map((orden) {
+        return PopupMenuItem<int>(
+          value: orden.id,
+          child: Row(
+            children: [
+              Icon(
+                Icons.receipt_long_outlined,
+                size: 18,
+                color: orden.id == _ordenSeleccionadaId
+                    ? Colors.red
+                    : Colors.grey,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  orden.titulo,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: orden.id == _ordenSeleccionadaId
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                ordenActual.titulo,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Icon(Icons.swap_vert, color: Color(0xFFE53935)),
+          ],
+        ),
       ),
     );
   }
@@ -541,12 +643,8 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
 
               return InkWell(
                 onTap: () {
-                  setState(() {
-                    _vehiculoSeleccionado = i;
-                    _cargando = true; // Mostrar loading mientras cambia
-                  });
                   Navigator.pop(context);
-                  _cargarFinanzas(v.id); // Recargar finanzas
+                  _seleccionarVehiculo(i);
                 },
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 10),
@@ -562,15 +660,16 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          v.imagen ??
-                              "https://placehold.co/50x50.png?text=Auto",
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.directions_car),
-                        ),
+                        child: (v.fullImagenUrl.isNotEmpty)
+                            ? Image.network(
+                                v.fullImagenUrl,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildCarPlaceholder(50),
+                              )
+                            : _buildCarPlaceholder(50),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -602,6 +701,15 @@ class _EstFinancieroPageState extends State<EstFinancieroPage> {
       },
     );
   }
+
+  Widget _buildCarPlaceholder(double size) {
+    return Container(
+      width: size,
+      height: size,
+      color: const Color.fromARGB(255, 54, 54, 54),
+      child: const Icon(Icons.directions_car, color: Colors.white),
+    );
+  }
 }
 
 // drawer
@@ -618,7 +726,7 @@ Widget _drawerItem(
       context.go(route);
     },
     child: Container(
-      color: selected ? const Color(0xFF2C5BEA) : Colors.transparent,
+      color: selected ? Colors.white.withOpacity(0.1) : Colors.transparent,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [

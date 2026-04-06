@@ -1,3 +1,5 @@
+import '../utils/dio_client.dart';
+
 class VehiculoModel {
   final int id;
   final int idCliente;
@@ -27,5 +29,13 @@ class VehiculoModel {
       placa: json['placa'],
       imagen: json['imagen'],
     );
+  }
+
+  // Getter para obtener la URL completa de la imagen desde Laravel
+  String get fullImagenUrl {
+    if (imagen == null || imagen!.isEmpty) return '';
+    if (imagen!.startsWith('http')) return imagen!;
+    // Ajustamos a la ruta de almacenamiento de Laravel
+    return 'http://127.0.0.1:8000/storage/$imagen';
   }
 }

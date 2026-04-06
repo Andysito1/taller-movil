@@ -1,126 +1,334 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import '../services/orden_service.dart';
 
 class PruebasPage extends StatefulWidget {
-  const PruebasPage({super.key});
+  final String? ordenId;
+  const PruebasPage({super.key, this.ordenId});
 
   @override
   State<PruebasPage> createState() => _PruebasPageState();
 }
 
 class _PruebasPageState extends State<PruebasPage> {
+  final OrdenService _ordenService = OrdenService();
+  bool _isLoadingData = true;
+  String _estadoEtapa = 'pendiente';
+  String _fechaActualizacion = "--/--/----";
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarInformacionOrden();
+  }
+
+  Future<void> _cargarInformacionOrden() async {
+    if (widget.ordenId == null || widget.ordenId == "0") {
+      setState(() => _isLoadingData = false);
+      return;
+    }
+
+    final data = await _ordenService.obtenerOrden(widget.ordenId!);
+    if (data != null && mounted) {
+      setState(() {
+        final List<dynamic>? etapas = data['etapas'];
+        final pruebasEtapa = etapas?.firstWhere(
+          (e) => e['etapa'] == 'pruebas',
+          orElse: () => null,
+        );
+
+        _estadoEtapa = pruebasEtapa != null
+            ? pruebasEtapa['estado']
+            : 'pendiente';
+
+        final rawDate = pruebasEtapa != null
+            ? pruebasEtapa['updated_at']
+            : data['updated_at'];
+
+        if (rawDate != null) {
+          try {
+            final parsedDate = DateTime.parse(rawDate);
+            _fechaActualizacion = DateFormat(
+              'yyyy-MM-dd HH:mm',
+            ).format(parsedDate);
+          } catch (e) {
+            _fechaActualizacion = rawDate.toString();
+          }
+        }
+        _isLoadingData = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Pruebas"), centerTitle: true),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Sección Diagnóstico
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
+      backgroundColor: const Color(0xFFF4F6F8),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
+          child: GestureDetector(
+            onTap: () => context.pop(),
+            child: Container(
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
+                color: Colors.black.withOpacity(0.4),
+                shape: BoxShape.circle,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "Pruebas",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 12),
-                  Text("Pruebas de funcionamiento y calidad"),
-                  Text("Estado: Pendiente"),
-                  Text("Técnico asignado: Carlos Méndez"),
-                  Text("Tiempo estimado: 2-3 horas"),
-                ],
+              child: const Icon(
+                Icons.arrow_back,
+                color: Colors.white,
+                size: 22,
               ),
             ),
-            const SizedBox(height: 24),
-
-            // Sección Aprobación del Cliente
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Aprobación del Cliente",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    "Selecciona una opción para indicar tu decisión sobre esta etapa del servicio:",
-                    style: TextStyle(color: Colors.black54),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Botones en orden
-                  Column(
-                    children: [
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          minimumSize: const Size.fromHeight(48),
-                        ),
-                        onPressed: () {
-                          context.go("/seguimiento");
-                        },
-                        icon: const Icon(Icons.check),
-                        label: const Text("Aprobar avance"),
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          minimumSize: const Size.fromHeight(48),
-                        ),
-                        onPressed: () {
-                          // Acción solicitar aclaración
-                        },
-                        icon: const Icon(Icons.error_outline),
-                        label: const Text("Solicitar aclaración"),
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          minimumSize: const Size.fromHeight(48),
-                        ),
-                        onPressed: () {
-                          // Acción rechazar/pausar
-                        },
-                        icon: const Icon(Icons.close),
-                        label: const Text("Rechazar o pausar servicio"),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    "Al aprobar, autorizas al taller a continuar con el siguiente paso del servicio.",
-                    style: TextStyle(
-                      color: Colors.black54,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
+        leadingWidth: 56,
+      ),
+      body: _isLoadingData
+          ? const Center(child: CircularProgressIndicator())
+          : Stack(
+              children: [
+                _buildHeaderImage(context),
+                ListView(
+                  padding: const EdgeInsets.only(
+                    top: 200,
+                    left: 16,
+                    right: 16,
+                    bottom: 100,
+                  ),
+                  children: [
+                    _buildInfoCard(),
+                    const SizedBox(height: 24),
+                    _buildNotesBox(),
+                    const SizedBox(height: 24),
+                    _buildStatusTimeline(),
+                  ],
+                ),
+              ],
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/chat'),
+        backgroundColor: const Color(0xFFE53935),
+        child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
       ),
     );
   }
+
+  Widget _buildHeaderImage(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.28,
+      width: double.infinity,
+      child: Image.network(
+        "https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?q=80&w=2064&auto=format&fit=crop",
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          // Si la imagen falla (404), mostramos un fondo sólido con un icono
+          return Container(
+            color: const Color(0xFF404040),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.science_outlined,
+              color: Colors.white,
+              size: 50,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF404040),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.science_outlined,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Pruebas",
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      "Última actualización: $_fechaActualizacion",
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildDetailRow(
+            "Estado actual",
+            _getStatusLabel(_estadoEtapa),
+            isStatus: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {bool isStatus = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+          ),
+          isStatus
+              ? Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getStatusBgColor(_estadoEtapa),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: _getStatusTextColor(_estadoEtapa),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                )
+              : Text(
+                  value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotesBox() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            "Control de Calidad",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+          SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusTimeline() {
+    final bool isCompleted =
+        _estadoEtapa.toLowerCase() == 'completado' ||
+        _estadoEtapa.toLowerCase() == 'finalizado';
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isCompleted ? const Color(0xFFE8F5E9) : const Color(0xFFE3F2FD),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isCompleted ? Icons.check_circle : Icons.biotech,
+            color: isCompleted ? Colors.green.shade700 : Colors.blue.shade700,
+            size: 32,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isCompleted ? "Pruebas Superadas" : "En verificación",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isCompleted
+                        ? Colors.green.shade900
+                        : Colors.blue.shade900,
+                  ),
+                ),
+                Text(
+                  isCompleted
+                      ? "El vehículo está listo para ser entregado."
+                      : "Estamos validando el correcto funcionamiento de los sistemas.",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isCompleted
+                        ? Colors.green.shade700
+                        : Colors.blue.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getStatusLabel(String estado) =>
+      estado.replaceAll('_', ' ').toUpperCase();
+  Color _getStatusBgColor(String estado) => estado.toLowerCase() == 'completado'
+      ? Colors.green.shade100
+      : Colors.blue.shade100;
+  Color _getStatusTextColor(String estado) =>
+      estado.toLowerCase() == 'completado'
+      ? Colors.green.shade900
+      : Colors.blue.shade900;
 }

@@ -10,13 +10,16 @@ class HistorialService {
       await DioClient.setTokenHeader();
       final response = await DioClient.dio.get('/historial/$vehiculoId');
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 && response.data != null) {
         final List<dynamic> data = response.data;
         return data.map((json) => HistorialOrdenModel.fromJson(json)).toList();
       }
       return [];
+    } on DioException catch (e) {
+      print("Error en HistorialService: ${e.response?.data}");
+      return [];
     } catch (e) {
-      print("Error al obtener historial: $e");
+      print("Error inesperado en HistorialService: $e");
       return [];
     }
   }

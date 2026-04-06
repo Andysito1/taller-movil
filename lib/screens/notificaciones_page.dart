@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:xtreme_performance/models/notification_model.dart';
 import 'package:xtreme_performance/models/usuario_model.dart';
+import 'package:xtreme_performance/models/veh_model.dart';
 import 'package:xtreme_performance/services/notifications_service.dart';
 import 'package:xtreme_performance/services/usuario_service.dart';
+import 'package:xtreme_performance/services/veh_service.dart';
 
 class NotificacionesPage extends StatefulWidget {
   const NotificacionesPage({super.key});
@@ -13,16 +15,53 @@ class NotificacionesPage extends StatefulWidget {
   State<NotificacionesPage> createState() => _NotificacionesPageState();
 }
 
-class _NotificacionesPageState extends State<NotificacionesPage> {
+class _NotificacionesPageState extends State<NotificacionesPage>
+    with WidgetsBindingObserver {
   // Acceso al Singleton correcto
   final NotificationService _notificationService = NotificationService();
   final UsuarioService _usuarioService = UsuarioService();
+  final VehService _vehService = VehService();
+
   UsuarioModel? _usuario;
+  List<VehiculoModel> _vehiculos = [];
+  int _vehiculoSeleccionado = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _cargarUsuario();
+    _cargarVehiculos();
+    _notificationService.fetchNotifications();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Se actualiza solo al volver a la aplicación
+      _notificationService.fetchNotifications();
+    }
+  }
+
+  Future<void> _cargarVehiculos() async {
+    try {
+      final vehiculosJson = await _vehService.obtenerMisVehiculos();
+      if (mounted) {
+        setState(() {
+          _vehiculos = vehiculosJson
+              .map((v) => VehiculoModel.fromJson(v))
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint("Error al cargar vehículos: $e");
+    }
   }
 
   Future<void> _cargarUsuario() async {
@@ -31,7 +70,6 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
       if (usuariosJson.isNotEmpty && mounted) {
         setState(() => _usuario = UsuarioModel.fromJson(usuariosJson.first));
         // Cargamos las notificaciones del historial
-        _notificationService.fetchNotifications();
       }
     } catch (e) {
       print("Error al cargar el usuario: $e");
@@ -56,7 +94,7 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2E4A8F),
+        backgroundColor: const Color(0xFF404040),
         elevation: 0,
         centerTitle: true,
         title: const Text(
@@ -67,94 +105,115 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.dark_mode_outlined, color: Colors.white),
-            onPressed: () {}, // Visual only
-          ),
-        ],
+        leading: Builder(
+          builder: (BuildContext context) {
+            return IconButton(
+              icon: const Icon(Icons.menu, color: Colors.white),
+              onPressed: () {
+                Scaffold.of(context).openDrawer();
+              },
+            );
+          },
+        ),
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(
+        //       Icons.dark_mode_outlined,
+        //       color: Colors.white,
+        //     ), // Visual only
+        //     onPressed: () {}, // Visual only
+        //   ),
+        // ],
       ),
-      drawer: _buildDrawer(),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 20.0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Notificaciones',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Actualizaciones de tus servicios',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                  ),
-                  const SizedBox(height: 30),
-                  _buildSectionTitle('HISTORIAL DE NOTIFICACIONES'),
-                ],
-              ),
-            ),
-          ),
-          // Corrección: Usamos ListenableBuilder en lugar de SliverAnimatedList
-          ListenableBuilder(
-            listenable: _notificationService,
-            builder: (context, child) {
-              if (_notificationService.isLoading) {
-                return const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-
-              if (_notificationService.hasError) {
-                return SliverFillRemaining(
-                  child: Center(
+      drawer: _buildDrawer(context),
+      body:
+          _notificationService.isLoading &&
+              _notificationService.notifications.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 20.0,
+                    ),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 48,
-                          color: Colors.red,
+                        const Text(
+                          'Notificaciones',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        const Text("No se pudieron cargar las notificaciones."),
-                        TextButton(
-                          onPressed: () =>
-                              _notificationService.fetchNotifications(),
-                          child: const Text("Reintentar"),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Actualizaciones de tus servicios',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
+                        const SizedBox(height: 30),
+                        _buildSectionTitle('HISTORIAL DE NOTIFICACIONES'),
                       ],
                     ),
                   ),
-                );
-              }
-
-              if (_notificationService.notifications.isEmpty) {
-                return const SliverFillRemaining(
-                  child: Center(child: Text("No tienes notificaciones.")),
-                );
-              }
-
-              return SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _buildNotificationCard(
-                    context,
-                    _notificationService.notifications[index],
-                  ),
-                  childCount: _notificationService.notifications.length,
                 ),
-              );
-            },
-          ),
-        ],
-      ),
+                // Corrección: Usamos ListenableBuilder en lugar de SliverAnimatedList
+                ListenableBuilder(
+                  listenable: _notificationService,
+                  builder: (context, child) {
+                    if (_notificationService.hasError) {
+                      return SliverFillRemaining(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                size: 48,
+                                color: Colors.red,
+                              ),
+                              const Text(
+                                "No se pudieron cargar las notificaciones.",
+                              ),
+                              TextButton(
+                                onPressed: () =>
+                                    _notificationService.fetchNotifications(),
+                                child: const Text("Reintentar"),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (_notificationService.notifications.isEmpty) {
+                      return const SliverFillRemaining(
+                        child: Center(child: Text("No tienes notificaciones.")),
+                      );
+                    }
+
+                    return SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _buildNotificationCard(
+                          context,
+                          _notificationService.notifications[index],
+                        ),
+                        childCount: _notificationService.notifications.length,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () {
+          context.push('/chat');
+        },
         backgroundColor: const Color(0xFFE53935),
         child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
       ),
@@ -175,15 +234,13 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Container(
           decoration: BoxDecoration(
-            color: notification.isRead
-                ? Colors.white
-                : Colors.blue.shade50.withOpacity(0.3),
+            color: Colors.white, // Fondo blanco como se solicitó
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                color: Colors.black.withOpacity(0.04), // Sombra más sutil
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -192,11 +249,14 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 48, // Un poco más grande para mejor visibilidad
+                height: 48,
                 decoration: BoxDecoration(
-                  color: notification.iconBackgroundColor,
-                  borderRadius: BorderRadius.circular(8),
+                  color: notification
+                      .iconBackgroundColor, // Color pastel definido en el modelo
+                  borderRadius: BorderRadius.circular(
+                    10,
+                  ), // Bordes redondeados pero cuadrado
                 ),
                 child: Icon(
                   notification.iconData,
@@ -260,10 +320,22 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
     );
   }
 
-  Drawer _buildDrawer() {
+  Widget _buildCarPlaceholder(double size) {
+    return Container(
+      width: size,
+      height: size,
+      color: const Color.fromARGB(255, 54, 54, 54),
+      child: const Icon(Icons.directions_car, color: Colors.white, size: 24),
+    );
+  }
+
+  Drawer _buildDrawer(BuildContext context) {
+    final bool hayVehiculos = _vehiculos.isNotEmpty;
+    final vehiculo = hayVehiculos ? _vehiculos[_vehiculoSeleccionado] : null;
+
     return Drawer(
       child: Container(
-        color: const Color(0xFF1F3C88),
+        color: const Color(0xFF404040),
         child: Column(
           children: [
             Container(
@@ -338,16 +410,63 @@ class _NotificacionesPageState extends State<NotificacionesPage> {
               route: "/ajustes",
             ),
             const Spacer(),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                "Versión 1.0.0",
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
-                  fontSize: 12,
+
+            // Bloque del vehículo seleccionado (Item debajo del drawer)
+            if (vehiculo != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF565656),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child:
+                            (vehiculo.imagen != null &&
+                                vehiculo.imagen!.isNotEmpty)
+                            ? Image.network(
+                                vehiculo.imagen!,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildCarPlaceholder(50),
+                              )
+                            : _buildCarPlaceholder(50),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "${vehiculo.marca} ${vehiculo.modelo}",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Placa: ${vehiculo.placa}",
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -370,7 +489,7 @@ Widget _drawerItem(
       }
     },
     child: Container(
-      color: selected ? const Color(0xFF2C5BEA) : Colors.transparent,
+      color: selected ? Colors.white.withOpacity(0.1) : Colors.transparent,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [

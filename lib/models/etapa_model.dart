@@ -16,9 +16,16 @@ class EtapaModel {
   });
 
   factory EtapaModel.fromJson(Map<String, dynamic> json) {
+    // Función auxiliar para parsear ID de forma segura
+    int parseId(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      return int.tryParse(value.toString()) ?? 0;
+    }
+
     return EtapaModel(
-      // Buscamos el ID de la orden. Asegúrate que el JSON de seguimiento incluya este campo.
-      id: json['id'] ?? json['orden_id'] ?? json['id_orden'] ?? 0,
+      // Priorizamos id_orden (inyectado por el servicio) o orden_id (del backend)
+      id: parseId(json['id_orden'] ?? json['orden_id']),
       titulo: json['titulo'] ?? '',
       descripcion: json['descripcion'] ?? '',
       estado: json['estado'] ?? 'Pendiente',

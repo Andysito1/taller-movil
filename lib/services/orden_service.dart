@@ -6,11 +6,25 @@ class OrdenService {
   Future<Map<String, dynamic>?> obtenerOrden(String id) async {
     try {
       await DioClient.setTokenHeader();
-      final response = await DioClient.dio.get('/ordenes-servicio/$id');
+      final response = await DioClient.dio.get('/orden-servicio/$id');
       return response.data;
     } catch (e) {
       print("Error al obtener detalle de la orden: $e");
       return null;
+    }
+  }
+
+  /// Obtiene la lista de órdenes activas para un vehículo específico.
+  Future<List<dynamic>> obtenerOrdenesActivas(int vehiculoId) async {
+    try {
+      await DioClient.setTokenHeader();
+      final response = await DioClient.dio.get(
+        '/vehiculos/$vehiculoId/ordenes-activas',
+      );
+      return response.data is List ? response.data : [];
+    } catch (e) {
+      print("Error al obtener órdenes activas: $e");
+      return [];
     }
   }
 
@@ -21,8 +35,8 @@ class OrdenService {
       final response = await DioClient.dio.post(
         '/etapa-servicio/validar-diagnostico/$id',
         data: {
-          'validacion_diagnostico': 'aprobado',
-        }, // Enviamos el estado explícitamente
+          'estado': 'aprobado',
+        }, // Cambiado para cumplir con la validación del backend
       );
       // Aceptamos cualquier código 2xx (200, 201, 204)
       return response.statusCode != null &&
@@ -40,9 +54,9 @@ class OrdenService {
   Future<bool> solicitarAclaracion(String id) async {
     try {
       await DioClient.setTokenHeader();
-      // Siguiendo la recomendación del flujo de trabajo
       final response = await DioClient.dio.post(
-        '/etapa-servicio/solicitar-aclaracion/$id',
+        '/etapa-servicio/validar-diagnostico/$id',
+        data: {'estado': 'aclaracion'},
       );
       return response.statusCode == 200;
     } on DioException catch (e) {

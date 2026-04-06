@@ -188,6 +188,8 @@ class NotificationService extends ChangeNotifier {
 
   /// Lógica de redirección basada en el payload de la notificación.
   void _handleNavigation(BuildContext context, Map<String, dynamic> data) {
+    debugPrint("DEBUG: Payload recibido en notificación: $data");
+
     // Si la notificación trae datos, intentamos crear un modelo temporal
     final idStr =
         data['id']?.toString() ??
@@ -209,12 +211,18 @@ class NotificationService extends ChangeNotifier {
       notifyListeners();
     }
 
-    if (data.containsKey('orden_id')) {
-      final ordenId = data['orden_id'].toString();
-      debugPrint("Navegando a Seguimiento de Orden: $ordenId");
+    // Si la notificación tiene un orden_id, navegamos a la pantalla correspondiente
+    // Revisamos múltiples llaves posibles que el backend podría estar enviando
+    final ordenId = (data['orden_id'] ?? data['id_orden'] ?? data['id'])
+        ?.toString();
 
-      // Usamos context.push para permitir que el usuario regrese con el botón atrás
-      appRouter.push('/seguimiento', extra: ordenId);
+    if (ordenId != null && ordenId != "0") {
+      debugPrint("Navegando a Seguimiento de Orden: $ordenId");
+      appRouter.push('/diagnostico', extra: ordenId);
+    } else {
+      debugPrint(
+        "ADVERTENCIA: No se encontró un orden_id válido en el payload.",
+      );
     }
   }
 

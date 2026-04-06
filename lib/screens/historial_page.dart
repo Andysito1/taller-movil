@@ -14,7 +14,8 @@ class HistorialPage extends StatefulWidget {
   State<HistorialPage> createState() => _HistorialPageState();
 }
 
-class _HistorialPageState extends State<HistorialPage> {
+class _HistorialPageState extends State<HistorialPage>
+    with WidgetsBindingObserver {
   List<VehiculoModel> _vehiculos = [];
   List<UsuarioModel> _usuarios = [];
   List<HistorialOrdenModel> _historial = [];
@@ -24,7 +25,22 @@ class _HistorialPageState extends State<HistorialPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _cargarDatosIniciales();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _vehiculos.isNotEmpty) {
+      // Recargar historial al volver a la app por si se completó una orden
+      _cargarHistorial(_vehiculos[_vehiculoSeleccionado].id);
+    }
   }
 
   Future<void> _cargarDatosIniciales() async {
@@ -68,6 +84,7 @@ class _HistorialPageState extends State<HistorialPage> {
   }
 
   Future<void> _cargarHistorial(int vehiculoId) async {
+    setState(() => _cargando = true);
     try {
       final historialData = await HistorialService()
           .obtenerHistorialPorVehiculo(vehiculoId);
@@ -85,19 +102,16 @@ class _HistorialPageState extends State<HistorialPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_cargando) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    final vehiculo = _vehiculos.isNotEmpty
-        ? _vehiculos[_vehiculoSeleccionado]
-        : null;
+    // Permitimos que la estructura cargue primero
+    final bool hayVehiculos = _vehiculos.isNotEmpty;
+    final vehiculo = hayVehiculos ? _vehiculos[_vehiculoSeleccionado] : null;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2E4A8F),
+        backgroundColor: const Color(0xFF404040),
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         title: const Text(
           "Xtreme Performance",
@@ -107,43 +121,53 @@ class _HistorialPageState extends State<HistorialPage> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.dark_mode_outlined, color: Colors.white),
-            onPressed: () {}, // Visual only
-          ),
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.dark_mode_outlined, color: Colors.white),
+        //     onPressed: () {}, // Visual only
+        //   ),
+        // ],
       ),
       drawer: _buildDrawer(context, vehiculo),
-      body: vehiculo == null
-          ? const Center(child: Text("No tienes vehículos registrados"))
-          : ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                // Selector de vehículo
-                _buildVehicleSelector(context, vehiculo),
-                const SizedBox(height: 24),
+      body: RefreshIndicator(
+        onRefresh: () => _cargarHistorial(vehiculo!.id),
+        color: const Color(0xFFE53935),
+        child: _cargando
+            ? const Center(child: CircularProgressIndicator())
+            : vehiculo == null
+            ? const Center(child: Text("No tienes vehículos registrados"))
+            : ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  // Selector de vehículo
+                  _buildVehicleSelector(context, vehiculo),
+                  const SizedBox(height: 24),
 
-                // Título de la sección
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    "Historial de Servicios",
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
+                  // Título de la sección
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      "Historial de Servicios",
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-                // Contenido: Lista o estado vacío
-                _historial.isEmpty ? _buildEmptyState() : _buildHistorialList(),
-              ],
-            ),
+                  // Contenido: Lista o estado vacío
+                  _historial.isEmpty
+                      ? _buildEmptyState()
+                      : _buildHistorialList(),
+                ],
+              ),
+      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () {
+          context.push('/chat');
+        },
         backgroundColor: const Color(0xFFE53935),
         child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
       ),
@@ -157,7 +181,7 @@ class _HistorialPageState extends State<HistorialPage> {
         margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF2E4A8F),
+          color: const Color(0xFF404040),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -171,22 +195,18 @@ class _HistorialPageState extends State<HistorialPage> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                vehiculo.imagen ?? "https://placehold.co/56x56.png?text=Auto",
-                width: 56,
-                height: 56,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 56,
-                  height: 56,
-                  color: Colors.white24,
-                  child: const Icon(Icons.directions_car, color: Colors.white),
-                ),
-              ),
+              child: (vehiculo.fullImagenUrl.isNotEmpty)
+                  ? Image.network(
+                      vehiculo.fullImagenUrl,
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildCarPlaceholder(56),
+                    )
+                  : _buildCarPlaceholder(56),
             ),
-            const SizedBox(width: 8),
-            const Icon(Icons.directions_car, color: Colors.red, size: 20),
-            const SizedBox(width: 12),
+            const SizedBox(width: 20),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,7 +319,7 @@ class _HistorialPageState extends State<HistorialPage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.receipt_long, color: Color(0xFF2E4A8F), size: 32),
+          const Icon(Icons.receipt_long, color: Color(0xFF404040), size: 32),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -373,15 +393,16 @@ class _HistorialPageState extends State<HistorialPage> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          v.imagen ??
-                              "https://placehold.co/50x50.png?text=Auto",
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.directions_car),
-                        ),
+                        child: (v.fullImagenUrl.isNotEmpty)
+                            ? Image.network(
+                                v.fullImagenUrl,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildCarPlaceholder(50),
+                              )
+                            : _buildCarPlaceholder(50),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -414,10 +435,19 @@ class _HistorialPageState extends State<HistorialPage> {
     );
   }
 
+  Widget _buildCarPlaceholder(double size) {
+    return Container(
+      width: size,
+      height: size,
+      color: const Color.fromARGB(255, 54, 54, 54),
+      child: const Icon(Icons.directions_car, color: Colors.white),
+    );
+  }
+
   Drawer _buildDrawer(BuildContext context, VehiculoModel? vehiculo) {
     return Drawer(
       child: Container(
-        color: const Color(0xFF1F3C88),
+        color: const Color(0xFF404040),
         child: Column(
           children: [
             // Header
@@ -507,29 +537,25 @@ class _HistorialPageState extends State<HistorialPage> {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2C5BEA),
+                    color: const Color(0xFF565656),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          vehiculo.imagen ??
-                              "https://placehold.co/50x50.png?text=Auto",
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            width: 50,
-                            height: 50,
-                            color: Colors.white24,
-                            child: const Icon(
-                              Icons.directions_car,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
+                        child:
+                            (vehiculo.imagen != null &&
+                                vehiculo.imagen!.isNotEmpty)
+                            ? Image.network(
+                                vehiculo.imagen!,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildCarPlaceholder(50),
+                              )
+                            : _buildCarPlaceholder(50),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -578,7 +604,7 @@ class _HistorialPageState extends State<HistorialPage> {
         if (!selected) context.go(route);
       },
       child: Container(
-        color: selected ? const Color(0xFF2C5BEA) : Colors.transparent,
+        color: selected ? Colors.white.withOpacity(0.1) : Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [

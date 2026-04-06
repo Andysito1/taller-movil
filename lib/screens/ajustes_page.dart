@@ -126,16 +126,25 @@ class _AjustesPageState extends State<AjustesPage> {
   }
 
   Future<void> _cerrarSesion() async {
-    // 1. Informar al backend que este token ya no es válido para este usuario
-    await NotificationService().deleteToken();
+    try {
+      // 1. Intentamos informar al backend (con un tiempo límite)
+      await NotificationService().deleteToken().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => debugPrint("Timeout al borrar token en backend"),
+      );
+    } catch (e) {
+      debugPrint("Error notificando cierre de sesión: $e");
+    } finally {
+      // 2. LIMPIEZA TOTAL obligatoria
+      DioClient.dio.options.headers.remove('Authorization');
 
-    // Eliminar el token de la instancia global de Dio para limpiar la sesión en memoria
-    DioClient.dio.options.headers.remove('Authorization');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    if (mounted) {
-      context.go('/login');
+      if (mounted) {
+        // 3. Navegar al login reseteando el stack
+        context.go('/login');
+      }
     }
   }
 
@@ -144,8 +153,9 @@ class _AjustesPageState extends State<AjustesPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2E4A8F),
+        backgroundColor: const Color(0xFF404040),
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         title: const Text(
           "Xtreme Performance",
@@ -155,19 +165,19 @@ class _AjustesPageState extends State<AjustesPage> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.dark_mode_outlined, color: Colors.white),
-            onPressed: () {}, // Visual only
-          ),
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.dark_mode_outlined, color: Colors.white),
+        //     onPressed: () {}, // Visual only
+        //   ),
+        // ],
       ),
       drawer: _buildDrawer(),
-      body: _cargando
-          ? const Center(child: CircularProgressIndicator())
-          : _buildBody(),
+      body: _buildBody(),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () {
+          context.push('/chat');
+        },
         backgroundColor: const Color(0xFFE53935),
         child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
       ),
@@ -175,6 +185,10 @@ class _AjustesPageState extends State<AjustesPage> {
   }
 
   Widget _buildBody() {
+    if (_cargando) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
       children: [
@@ -384,7 +398,7 @@ class _AjustesPageState extends State<AjustesPage> {
   Drawer _buildDrawer() {
     return Drawer(
       child: Container(
-        color: const Color(0xFF1F3C88),
+        color: const Color(0xFF404040),
         child: Column(
           children: [
             // Header
@@ -495,7 +509,7 @@ Widget _drawerItem(
       }
     },
     child: Container(
-      color: selected ? const Color(0xFF2C5BEA) : Colors.transparent,
+      color: selected ? Colors.white.withOpacity(0.1) : Colors.transparent,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [

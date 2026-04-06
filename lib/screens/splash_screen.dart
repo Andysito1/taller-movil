@@ -31,7 +31,7 @@ class _SplashScreenState extends State<SplashScreen> {
             const Icon(
               Icons.directions_car,
               size: 100,
-              color: Color(0xFF1F3C88), // Azul corporativo
+              color: Color(0xFF404040), // Azul corporativo
             ),
             const SizedBox(height: 20),
             const Text(

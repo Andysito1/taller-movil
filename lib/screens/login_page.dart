@@ -19,6 +19,9 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usuarioController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  // Estado para la visibilidad de la contraseña
+  bool _obscurePassword = true;
+
   @override
   void dispose() {
     _usuarioController.dispose();
@@ -29,6 +32,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F8),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -37,19 +41,40 @@ class _LoginPageState extends State<LoginPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // Logo y título
-                const SizedBox(height: 20),
+                const Icon(
+                  Icons.directions_car_filled_rounded,
+                  size: 80,
+                  color: Color(0xFF404040),
+                ),
+                const SizedBox(height: 16),
                 const Text(
                   "Xtreme Performance",
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    color: Color(0xFF404040),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 const Text(
-                  'Seguimiento de Vehículo',
-                  style: TextStyle(fontSize: 16, color: Color(0xFF666666)),
+                  '¡La aplicación perfecta para el',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Color(0xFF666666),
+                    fontWeight: FontWeight.w400,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+
+                const SizedBox(height: 0.5),
+                const Text(
+                  'seguimiento de tus vehículos y servicios!',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Color(0xFF666666),
+                    fontWeight: FontWeight.w400,
+                    letterSpacing: 0.2,
+                  ),
                 ),
 
                 const SizedBox(height: 24),
@@ -62,7 +87,7 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
+                        color: Colors.black.withOpacity(0.05),
                         blurRadius: 10,
                         offset: const Offset(0, 5),
                       ),
@@ -71,22 +96,31 @@ class _LoginPageState extends State<LoginPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Usuario / Correo
+                      // Correo Electrónico
                       const Text(
-                        "Usuario / Correo",
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                        "Correo electrónico",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF404040),
+                        ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       TextField(
                         controller: _usuarioController,
+                        keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
-                          hintText: "usuario@gmail.com",
-                          prefixIcon: const Icon(Icons.person_outline),
+                          hintText: "ejemplo@correo.com",
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                          prefixIcon: const Icon(Icons.email_outlined),
                           filled: true,
-                          fillColor: const Color(0xFFF2F2F2),
+                          fillColor: const Color(0xFFF8F9FA),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
                           ),
                         ),
                       ),
@@ -96,20 +130,41 @@ class _LoginPageState extends State<LoginPage> {
                       // Contraseña
                       const Text(
                         "Contraseña",
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF404040),
+                        ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       TextField(
                         controller: _passwordController,
-                        obscureText: true,
+                        obscureText: _obscurePassword,
                         decoration: InputDecoration(
-                          hintText: "******",
+                          hintText: "Ingresa tu contraseña",
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
                           prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
                           filled: true,
-                          fillColor: const Color(0xFFF2F2F2),
+                          fillColor: const Color(0xFFF8F9FA),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
                           ),
                         ),
                       ),
@@ -118,9 +173,12 @@ class _LoginPageState extends State<LoginPage> {
 
                       // Texto informativo
                       const Text(
-                        "Las credenciales son proporcionadas por \nXtreme Performance",
+                        "Si no tienes acceso, contacta con el administrador de Xtreme Performance",
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF999999),
+                        ),
                       ),
 
                       const SizedBox(height: 20),
@@ -194,17 +252,6 @@ class _LoginPageState extends State<LoginPage> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 14),
-
-                      // Olvido de contraseña
-                      TextButton(
-                        onPressed: () {},
-                        child: const Text(
-                          "¿Olvidaste tu contraseña?",
-                          style: TextStyle(color: Colors.red),
                         ),
                       ),
                     ],

@@ -4,6 +4,7 @@ import 'package:xtreme_performance/firebase_options.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:go_router/go_router.dart';
 import 'package:xtreme_performance/screens/ajustes_page.dart';
+import 'package:xtreme_performance/screens/chat_page.dart';
 import 'package:xtreme_performance/screens/diagnostico_page.dart';
 import 'package:xtreme_performance/screens/estado_financiero.dart';
 import 'package:xtreme_performance/screens/finalizacion_page.dart';
@@ -44,6 +45,20 @@ void main() async {
 
 // Configuracion
 final GoRouter appRouter = GoRouter(
+  redirect: (BuildContext context, GoRouterState state) {
+    // Verificamos si tenemos el token en los headers de Dio
+    final bool isAuthenticated = DioClient.dio.options.headers.containsKey(
+      'Authorization',
+    );
+    final bool isLoggingIn = state.matchedLocation == '/login';
+    final bool isSplash = state.matchedLocation == '/';
+
+    // Si no está autenticado y no está en login/splash, forzar ir a login
+    if (!isAuthenticated && !isLoggingIn && !isSplash) {
+      return '/login';
+    }
+    return null;
+  },
   routes: <RouteBase>[
     GoRoute(
       path: '/',
@@ -105,21 +120,31 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: 'reparacion',
           builder: (BuildContext context, GoRouterState state) {
-            return const ReparacionPage();
+            final ordenId = state.extra as String?;
+            return ReparacionPage(ordenId: ordenId);
           },
         ),
 
         GoRoute(
           path: 'pruebas',
           builder: (BuildContext context, GoRouterState state) {
-            return const PruebasPage();
+            final ordenId = state.extra as String?;
+            return PruebasPage(ordenId: ordenId);
           },
         ),
 
         GoRoute(
           path: 'final',
           builder: (BuildContext context, GoRouterState state) {
-            return const FinalPage();
+            final ordenId = state.extra as String?;
+            return FinalPage(ordenId: ordenId);
+          },
+        ),
+
+        GoRoute(
+          path: 'chat',
+          builder: (BuildContext context, GoRouterState state) {
+            return const ChatPage(title: 'Chat de Soporte');
           },
         ),
       ],
